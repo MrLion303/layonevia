@@ -10,6 +10,8 @@ public sealed class ConversationContext
     public string? LastFolder { get; private set; }
     public PendingFileAction? PendingAction { get; private set; }
     public FileActionRecord? LastAction { get; private set; }
+    public string? LastToolAction { get; private set; }
+    public string? LastToolResult { get; private set; }
 
     public IReadOnlyList<string> LastResults => _lastResults;
 
@@ -107,6 +109,12 @@ public sealed class ConversationContext
 
     public void SetPendingAction(PendingFileAction action) => PendingAction = action;
 
+    public void RecordToolAction(string action, string result)
+    {
+        LastToolAction = action;
+        LastToolResult = result;
+    }
+
     public PendingFileAction? TakePendingAction()
     {
         var action = PendingAction;
@@ -121,6 +129,8 @@ public sealed class ConversationContext
         LastFolder = null;
         PendingAction = null;
         LastAction = null;
+        LastToolAction = null;
+        LastToolResult = null;
         _lastResults.Clear();
     }
 
