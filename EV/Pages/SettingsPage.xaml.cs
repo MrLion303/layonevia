@@ -7,11 +7,53 @@ namespace EV.Pages;
 public partial class SettingsPage : UserControl
 {
     private readonly AiSettingsStore _aiSettings = new();
+    private readonly AppSettingsStore _appSettings = new();
+    private readonly WindowsStartupService _startup = new();
+    private bool _loadingGeneral;
 
     public SettingsPage()
     {
         InitializeComponent();
+        LoadGeneralSettings();
         LoadAiSettings();
+    }
+
+    private void LoadGeneralSettings()
+    {
+        try
+        {
+            _loadingGeneral = true;
+            var settings = _appSettings.Load();
+            StartWithWindowsBox.IsChecked = settings.StartWithWindows;
+            VoiceResponseBox.IsChecked = settings.VoiceResponseEnabled;
+            WakeWordBox.IsChecked = settings.WakeWordEnabled;
+        }
+        finally
+        {
+            _loadingGeneral = false;
+        }
+    }
+
+    private void GeneralSetting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loadingGeneral)
+            return;
+
+        try
+        {
+            var settings = _appSettings.Load();
+            settings.StartWithWindows = StartWithWindowsBox.IsChecked == true;
+            settings.VoiceResponseEnabled = VoiceResponseBox.IsChecked == true;
+            settings.WakeWordEnabled = WakeWordBox.IsChecked == true;
+            _appSettings.Save(settings);
+            _startup.SetEnabled(settings.StartWithWindows);
+            AiStatus.Text = "Ajustes generales guardados.";
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudieron guardar los ajustes generales");
+            AiStatus.Text = "No se pudieron guardar los ajustes generales.";
+        }
     }
 
     private void LoadAiSettings()
