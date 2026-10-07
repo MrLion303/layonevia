@@ -447,7 +447,7 @@ public sealed class CommandEngine
 
         if (TryGetMemoryRequest(command, out var memory))
         {
-            var item = new MemoryItem { Text = memory };
+            var item = CreateMemoryItem(memory);
             var result = await _memory.SaveMemoryOnlineAsync(item, cancellationToken);
 
             return result.State switch
@@ -592,6 +592,45 @@ public sealed class CommandEngine
             return CommandResult.Success(conversation.Text);
 
         return CommandResult.Failure(conversation.Text);
+    }
+
+    private static MemoryItem CreateMemoryItem(string text)
+    {
+        var normalized = Normalize(text);
+        var category = "general";
+
+        if (ContainsAny(normalized, "prefiero", "prefiere", "me gusta mas", "me gusta más", "quiero que siempre"))
+            category = "preference";
+        else if (ContainsAny(normalized, "soy ", "tengo ", "estudio ", "trabajo ", "vivo ", "mi nombre"))
+            category = "profile";
+        else if (ContainsAny(normalized, "siempre ", "nunca ", "recuerda que"))
+            category = "fact";
+
+        return new MemoryItem
+        {
+            Text = text.Trim(),
+            Category = category,
+            Subject = ExtractMemorySubject(text, category)
+        };
+    }
+
+    private static string? ExtractMemorySubject(string text, string category)
+    {
+        if (category != "preference")
+            return null;
+
+        var normalized = Normalize(text);
+        foreach (var marker in new[] { "prefiero ", "prefiere ", "me gusta mas ", "me gusta más " })
+        {
+            var index = normalized.IndexOf(marker, StringComparison.Ordinal);
+            if (index >= 0)
+            {
+                var subject = text.Trim()[(index + marker.Length)..].Trim();
+                return subject.Length > 0 ? subject : null;
+            }
+        }
+
+        return null;
     }
 
     private CommandResult? TryHandleRepeatCommand(string text)
