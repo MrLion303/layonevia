@@ -1,3 +1,4 @@
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -5,8 +6,7 @@ namespace EV.Services;
 
 public sealed class SecureAccountStore
 {
-    private static readonly byte[] Entropy =
-        Encoding.UTF8.GetBytes("EV-GitHub-Account-v1");
+    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("EV-GitHub-Account-v1");
 
     private readonly string _path = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -21,11 +21,7 @@ public sealed class SecureAccountStore
                 return null;
 
             var encrypted = File.ReadAllBytes(_path);
-            var json = ProtectedData.Unprotect(
-                encrypted,
-                Entropy,
-                DataProtectionScope.CurrentUser);
-
+            var json = ProtectedData.Unprotect(encrypted, Entropy, DataProtectionScope.CurrentUser);
             return System.Text.Json.JsonSerializer.Deserialize<GitHubAccount>(json);
         }
         catch
@@ -39,11 +35,7 @@ public sealed class SecureAccountStore
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
 
         var json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(account);
-        var encrypted = ProtectedData.Protect(
-            json,
-            Entropy,
-            DataProtectionScope.CurrentUser);
-
+        var encrypted = ProtectedData.Protect(json, Entropy, DataProtectionScope.CurrentUser);
         File.WriteAllBytes(_path, encrypted);
     }
 
