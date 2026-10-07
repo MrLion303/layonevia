@@ -147,8 +147,10 @@ public partial class MainWindow : Window
             VoiceStatusText.Text = "Hablando...";
             await _voiceOutput.SpeakAsync(result.Response);
 
-            if (!IsClosed)
-                _voiceRecognition.Start();
+            if (!IsLoaded)
+                return;
+
+            _voiceRecognition.Start();
 
             VoiceStatusText.Text = _voiceRecognition.IsListening
                 ? "Escuchando «Oye ibi»"
