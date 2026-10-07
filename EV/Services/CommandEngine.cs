@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Windows;
 
 namespace EV.Services;
@@ -33,6 +35,9 @@ public sealed class CommandEngine
                 _ => CommandResult.Failure(result.Message)
             };
         }
+
+        if (TryGetFileCommand(command, out var fileCommand))
+            return ExecuteFileCommand(fileCommand);
 
         if (TryGetApplicationCommand(command, out var appCommand))
             return ExecuteApplicationCommand(appCommand);
@@ -76,6 +81,261 @@ public sealed class CommandEngine
 
         return CommandResult.Failure(
             $"Todavía no tengo una acción para «{command}». Podemos enseñarme esa orden después.");
+    }
+
+    private static bool TryGetFileCommand(string text, out FileCommand command)
+    {
+        command = default;
+
+        var normalized = Normalize(text);
+        if (!ContainsAny(normalized, "abre", "abrir", "open", "busca", "buscar", "encuentra", "encuentre"))
+            return false;
+
+        var location = ResolveNaturalLocation(normalized);
+        var folderName = ExtractNaturalFolder(normalized);
+        var fileName = ExtractNaturalFile(normalized);
+
+        if (string.IsNullOrWhiteSpace(fileName))
+            return false;
+
+        command = new FileCommand(location, folderName, fileName);
+        return true;
+    }
+
+    private static CommandResult ExecuteFileCommand(FileCommand command)
+    {
+        try
+        {
+            var baseFolder = command.Location;
+            if (string.IsNullOrWhiteSpace(baseFolder) || !Directory.Exists(baseFolder))
+                return CommandResult.Failure("No encontré esa ubicación en el equipo.");
+
+            var searchRoot = baseFolder;
+
+            if (!string.IsNullOrWhiteSpace(command.FolderName))
+            {
+                var folder = FindDirectory(searchRoot, command.FolderName);
+                if (folder is null)
+                    return CommandResult.Failure(
+                        $"No encontré la carpeta «{command.FolderName}» dentro de {GetLocationName(baseFolder)}.");
+
+                searchRoot = folder;
+            }
+
+            var file = FindFile(searchRoot, command.FileName);
+            if (file is null)
+                return CommandResult.Failure(
+                    $"No encontré el archivo «{command.FileName}» en esa ubicación.");
+
+            StartShell(file);
+            return CommandResult.Success($"Abriendo «{Path.GetFileName(file)}», señor.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return CommandResult.Failure("Encontré la ubicación, pero Windows no me permite acceder a ella.");
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo resolver una orden de archivo");
+            return CommandResult.Failure("No pude abrir ese archivo.");
+        }
+    }
+
+    private static string? ResolveNaturalLocation(string normalized)
+    {
+        if (normalized.Contains("escritorio", StringComparison.Ordinal))
+            return Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+
+        if (normalized.Contains("documentos", StringComparison.Ordinal) ||
+            normalized.Contains("mis documentos", StringComparison.Ordinal))
+            return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        if (normalized.Contains("descargas", StringComparison.Ordinal) ||
+            normalized.Contains("downloads", StringComparison.Ordinal))
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Downloads");
+
+        if (normalized.Contains("musica", StringComparison.Ordinal))
+            return Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
+
+        if (normalized.Contains("imagenes", StringComparison.Ordinal) ||
+            normalized.Contains("fotos", StringComparison.Ordinal))
+            return Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+
+        if (normalized.Contains("videos", StringComparison.Ordinal))
+            return Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+
+        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    }
+
+    private static string? ExtractNaturalFolder(string normalized)
+    {
+        var patterns = new[]
+        {
+            @"(?:carpeta|directorio|folder)\s+(?<name>.+?)(?=\s+(?:abre|abrir|busca|buscar|encuentra|encuentre)\b|\s+(?:el|un|una)\s+(?:archivo|documento|fichero)\b|$)",
+            @"(?:dentro\s+de|entra\s+en|en)\s+(?:la\s+)?(?:carpeta|directorio|folder)\s+(?<name>.+?)(?=\s+(?:abre|abrir|busca|buscar|encuentra|encuentre)\b|\s+(?:el|un|una)\s+(?:archivo|documento|fichero)\b|$)"
+        };
+
+        foreach (var pattern in patterns)
+        {
+            var match = Regex.Match(normalized, pattern, RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                var value = CleanNaturalName(match.Groups["name"].Value);
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ExtractNaturalFile(string normalized)
+    {
+        var patterns = new[]
+        {
+            @"(?:abre|abrir|busca|buscar|encuentra|encuentre)\s+(?:el|la|un|una)?\s*(?:archivo|documento|fichero)\s+(?<name>.+?)(?=\s+(?:que|dentro|en|del|de la|de)\b|$)",
+            @"(?:archivo|documento|fichero)\s+(?<name>.+?)(?=\s+(?:que|viene|esta|está|dentro|en|del|de la|de)\b|$)"
+        };
+
+        foreach (var pattern in patterns)
+        {
+            var match = Regex.Match(normalized, pattern, RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                var value = CleanNaturalName(match.Groups["name"].Value);
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string CleanNaturalName(string value)
+    {
+        return value
+            .Trim(' ', '.', ',', ';', ':', '"', '\'')
+            .Replace(" que viene", "", StringComparison.Ordinal)
+            .Replace(" que esta", "", StringComparison.Ordinal)
+            .Replace(" que está", "", StringComparison.Ordinal)
+            .Trim();
+    }
+
+    private static string? FindDirectory(string root, string requestedName)
+    {
+        var normalizedRequested = Normalize(Path.GetFileName(requestedName.Trim()));
+
+        if (Normalize(Path.GetFileName(root)) == normalizedRequested)
+            return root;
+
+        try
+        {
+            foreach (var directory in Directory.EnumerateDirectories(
+                root,
+                "*",
+                new EnumerationOptions
+                {
+                    RecurseSubdirectories = true,
+                    IgnoreInaccessible = true,
+                    ReturnSpecialDirectories = false
+                }))
+            {
+                if (Normalize(Path.GetFileName(directory)) == normalizedRequested)
+                    return directory;
+            }
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, $"No se pudo buscar la carpeta {requestedName}");
+        }
+
+        return null;
+    }
+
+    private static string? FindFile(string root, string requestedName)
+    {
+        var normalizedRequested = Normalize(requestedName);
+        var requestedBase = Normalize(Path.GetFileNameWithoutExtension(requestedName));
+        var hasExtension = !string.IsNullOrWhiteSpace(Path.GetExtension(requestedName));
+
+        try
+        {
+            var exactMatches = new List<string>();
+
+            foreach (var file in Directory.EnumerateFiles(
+                root,
+                "*",
+                new EnumerationOptions
+                {
+                    RecurseSubdirectories = true,
+                    IgnoreInaccessible = true,
+                    ReturnSpecialDirectories = false
+                }))
+            {
+                var name = Path.GetFileName(file);
+                var normalizedName = Normalize(name);
+
+                if (hasExtension)
+                {
+                    if (normalizedName == normalizedRequested)
+                        exactMatches.Add(file);
+                }
+                else if (Normalize(Path.GetFileNameWithoutExtension(name)) == requestedBase)
+                {
+                    exactMatches.Add(file);
+                }
+            }
+
+            return exactMatches
+                .OrderBy(path => GetFileMatchPriority(path, hasExtension))
+                .ThenBy(path => path.Length)
+                .FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, $"No se pudo buscar el archivo {requestedName}");
+            return null;
+        }
+    }
+
+    private static int GetFileMatchPriority(string path, bool hasExtension)
+    {
+        if (hasExtension)
+            return 0;
+
+        var extension = Path.GetExtension(path).ToLowerInvariant();
+
+        return extension switch
+        {
+            ".txt" => 0,
+            ".doc" or ".docx" => 1,
+            ".pdf" => 2,
+            ".xlsx" or ".xls" => 3,
+            ".pptx" or ".ppt" => 4,
+            ".jpg" or ".jpeg" or ".png" or ".webp" => 5,
+            ".mp3" or ".wav" or ".flac" => 6,
+            ".mp4" or ".mkv" or ".avi" => 7,
+            _ => 10
+        };
+    }
+
+    private static bool ContainsAny(string text, params string[] values) =>
+        values.Any(value => text.Contains(value, StringComparison.Ordinal));
+
+    private static string GetLocationName(string path)
+    {
+        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        if (string.Equals(path, desktop, StringComparison.OrdinalIgnoreCase))
+            return "el escritorio";
+
+        if (string.Equals(path, documents, StringComparison.OrdinalIgnoreCase))
+            return "Documentos";
+
+        return "esa ubicación";
     }
 
     private static bool TryGetApplicationCommand(string text, out ApplicationCommand command)
@@ -660,6 +920,7 @@ public sealed class CommandEngine
 
     private delegate bool EnumWindowsProc(IntPtr handle, IntPtr extraData);
 
+    private readonly record struct FileCommand(string Location, string? FolderName, string FileName);
     private readonly record struct ApplicationCommand(ApplicationAction Action, string Target);
     private readonly record struct WindowCommand(WindowAction Action);
     private readonly record struct SystemCommand(SystemAction Action);
