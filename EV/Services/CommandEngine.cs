@@ -45,6 +45,9 @@ public sealed class CommandEngine
                 case "get_system_info":
                     return ExecuteAiSystemInfoTool();
 
+                case "list_running_apps":
+                    return ExecuteAiRunningAppsTool();
+
                 case "clipboard":
                     return ExecuteAiClipboardTool(root);
 
@@ -651,6 +654,51 @@ public sealed class CommandEngine
         {
             App.LogException(ex, "No se pudo consultar la información del sistema");
             return AiToolResult.Failure("No pude consultar la información del equipo.");
+        }
+    }
+
+    private AiToolResult ExecuteAiRunningAppsTool()
+    {
+        try
+        {
+            var apps = new List<string>();
+
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    if (process.HasExited || process.MainWindowHandle == IntPtr.Zero)
+                        continue;
+
+                    var title = process.MainWindowTitle?.Trim();
+                    if (string.IsNullOrWhiteSpace(title))
+                        continue;
+
+                    apps.Add($"{title} [{process.ProcessName}] (PID {process.Id})");
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+
+            if (apps.Count == 0)
+                return AiToolResult.Success("No encontré aplicaciones con una ventana principal activa.");
+
+            return AiToolResult.Success(
+                $"Aplicaciones con ventana activa ({apps.Count}):{Environment.NewLine}" +
+                string.Join(Environment.NewLine, apps
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .Take(80)
+                    .Select((x, i) => $"{i + 1}. {x}")));
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudieron enumerar las aplicaciones activas");
+            return AiToolResult.Failure("No pude consultar las aplicaciones abiertas.");
         }
     }
 
@@ -2466,7 +2514,13 @@ public sealed class CommandEngine
 
     private static IntPtr FindWindowByTarget(string target)
     {
-        IntPtr found = IntPtr.Zero;
+        if (string.IsNullOrWhiteSpace(target))
+            return GetForegroundWindow();
+
+        var normalizedTarget = Normalize(target);
+        var processTarget = GetProcessName(target);
+        IntPtr bestHandle = IntPtr.Zero;
+        var bestScore = 0;
 
         EnumWindows((handle, _) =>
         {
@@ -2477,18 +2531,48 @@ public sealed class CommandEngine
             if (title.Length == 0)
                 return true;
 
-            var normalizedTitle = Normalize(title);
+            GetWindowThreadProcessId(handle, out var processId);
+            var processName = string.Empty;
 
-            if (normalizedTitle.Contains(target, StringComparison.OrdinalIgnoreCase))
+            if (processId != 0)
             {
-                found = handle;
-                return false;
+                try
+                {
+                    using var process = Process.GetProcessById((int)processId);
+                    processName = process.ProcessName;
+                }
+                catch
+                {
+                }
+            }
+
+            var normalizedTitle = Normalize(title);
+            var normalizedProcess = Normalize(processName);
+            var score = 0;
+
+            if (normalizedTitle.Equals(normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                score += 100;
+
+            if (normalizedTitle.Contains(normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                score += 60;
+
+            if (normalizedProcess.Equals(normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                score += 80;
+
+            if (!string.IsNullOrWhiteSpace(processTarget) &&
+                normalizedProcess.Equals(Normalize(processTarget), StringComparison.OrdinalIgnoreCase))
+                score += 100;
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestHandle = handle;
             }
 
             return true;
         }, IntPtr.Zero);
 
-        return found;
+        return bestHandle;
     }
 
     private static string GetWindowTitle(IntPtr handle)
