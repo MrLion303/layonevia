@@ -906,6 +906,10 @@ public sealed class CommandEngine
             "mute" => SystemAction.Mute,
             "volume_up" => SystemAction.VolumeUp,
             "volume_down" => SystemAction.VolumeDown,
+            "play_pause" => SystemAction.PlayPause,
+            "next_track" => SystemAction.NextTrack,
+            "previous_track" => SystemAction.PreviousTrack,
+            "stop_media" => SystemAction.StopMedia,
             _ => (SystemAction?)null
         };
 
