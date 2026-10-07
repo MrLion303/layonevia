@@ -92,6 +92,76 @@ public sealed class MemorySyncService
         }
     }
 
+    public async Task<MemorySyncResult> UpsertMemoryOnlineAsync(
+        MemoryItem memory,
+        Func<MemoryItem, bool> matches,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var account = _accounts.Load();
+            if (account is null)
+                return MemorySyncResult.NotConnected("EV todavía no está conectado a GitHub.");
+
+            if (account.AccessTokenExpiresAt is not null &&
+                account.AccessTokenExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(1))
+            {
+                var refreshed = await _auth.RefreshAsync(account, cancellationToken);
+                if (refreshed is null)
+                    return MemorySyncResult.NotConnected("La sesión de GitHub expiró. Vuelve a vincular la cuenta.");
+
+                account = refreshed;
+                _accounts.Save(account);
+            }
+
+            if (!await _github.CanReachGitHubAsync(cancellationToken))
+                return MemorySyncResult.Offline("GitHub no está disponible.");
+
+            var local = _localStore.Load().ToList();
+            var remoteFile = await _github.DownloadMemoryAsync(
+                account.Repository, account.AccessToken, MemoryPath, cancellationToken);
+
+            var remote = remoteFile is null ? new List<MemoryItem>() : Deserialize(remoteFile.Content);
+            var merged = Merge(local, remote);
+
+            var existing = merged
+                .Where(matches)
+                .OrderByDescending(x => x.UpdatedAt)
+                .FirstOrDefault();
+
+            if (existing is not null)
+            {
+                memory.Id = existing.Id;
+                memory.CreatedAt = existing.CreatedAt;
+            }
+
+            memory.UpdatedAt = DateTimeOffset.UtcNow;
+
+            merged.RemoveAll(x => x.Id == memory.Id);
+            merged.Add(memory);
+
+            var json = JsonSerializer.Serialize(merged, new JsonSerializerOptions { WriteIndented = true });
+            var saved = await _github.SaveMemoryAsync(
+                account.Repository, account.AccessToken, MemoryPath, json,
+                remoteFile?.Sha, cancellationToken);
+
+            if (!saved)
+                return MemorySyncResult.Failed("No se pudo actualizar el recuerdo en GitHub.");
+
+            _localStore.Save(merged);
+            return MemorySyncResult.Success(merged.Count);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "Error al actualizar un recuerdo");
+            return MemorySyncResult.Failed("No se pudo actualizar el recuerdo.");
+        }
+    }
+
     public async Task<MemorySyncResult> SaveMemoryOnlineAsync(
         MemoryItem memory,
         CancellationToken cancellationToken = default)
