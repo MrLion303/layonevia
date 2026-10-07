@@ -6,6 +6,7 @@ namespace EV.Pages;
 
 public partial class SettingsPage : UserControl
 {
+    public event EventHandler? SettingsChanged;
     private readonly AiSettingsStore _aiSettings = new();
     private readonly AppSettingsStore _appSettings = new();
     private readonly WindowsStartupService _startup = new();
@@ -48,6 +49,7 @@ public partial class SettingsPage : UserControl
             _appSettings.Save(settings);
             _startup.SetEnabled(settings.StartWithWindows);
             AiStatus.Text = "Ajustes generales guardados.";
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
