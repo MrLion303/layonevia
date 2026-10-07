@@ -50,6 +50,9 @@ public sealed class ConversationContext
 
     public string? LastToolAction { get; private set; }
     public string? LastToolResult { get; private set; }
+    public string? ActiveApplication { get; private set; }
+    public string? ActiveWindowTitle { get; private set; }
+    public string? ActiveProcessName { get; private set; }
 
     public IReadOnlyList<string> LastResults => _lastResults;
 
@@ -85,6 +88,17 @@ public sealed class ConversationContext
             return _lastResults.Count > 1 ? _lastResults[1] : null;
 
         return null;
+    }
+
+    public void SetActiveWindow(string title, string? processName = null)
+    {
+        ActiveWindowTitle = string.IsNullOrWhiteSpace(title) ? null : title;
+        ActiveProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName;
+    }
+
+    public void SetActiveApplication(string application)
+    {
+        ActiveApplication = string.IsNullOrWhiteSpace(application) ? null : application;
     }
 
     public void SetOpenedFile(string path)
@@ -196,6 +210,9 @@ public sealed class ConversationContext
         LastToolAction = null;
         CurrentTask = null;
         LastToolResult = null;
+        ActiveApplication = null;
+        ActiveWindowTitle = null;
+        ActiveProcessName = null;
         _lastResults.Clear();
         _recentToolSequence.Clear();
     }
