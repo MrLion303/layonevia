@@ -55,10 +55,7 @@ public sealed class CommandEngine
 
         if (TryGetFileCommand(command, out var fileCommand))
         {
-            var result = ExecuteFileCommand(fileCommand);
-            if (result.Succeeded)
-                _context.SetOpenedFile(fileCommand.FileName);
-            return result;
+            return ExecuteFileCommand(fileCommand);
         }
 
         if (TryGetApplicationCommand(command, out var appCommand))
@@ -136,7 +133,7 @@ public sealed class CommandEngine
         return true;
     }
 
-    private static CommandResult ExecuteFileCommand(FileCommand command)
+    private CommandResult ExecuteFileCommand(FileCommand command)
     {
         try
         {
@@ -162,6 +159,7 @@ public sealed class CommandEngine
                     $"No encontré el archivo «{command.FileName}» en esa ubicación.");
 
             StartShell(file);
+            _context.SetOpenedFile(file);
             return CommandResult.Success($"Abriendo «{Path.GetFileName(file)}», señor.");
         }
         catch (UnauthorizedAccessException)
