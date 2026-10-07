@@ -23,6 +23,7 @@ public sealed class VoiceRecognitionService : IDisposable
     private bool _listening;
     private bool _wakeArmed;
     private DateTime _wakeArmedUntil;
+    private DateTime _lastCommandAt = DateTime.MinValue;
     private readonly object _sync = new();
 
     public event EventHandler<VoiceCommandEventArgs>? CommandRecognized;
@@ -159,7 +160,7 @@ public sealed class VoiceRecognitionService : IDisposable
         if (wakeIndex >= 0)
         {
             _wakeArmed = true;
-            _wakeArmedUntil = DateTime.UtcNow.AddSeconds(6);
+            _wakeArmedUntil = DateTime.UtcNow.AddSeconds(8);
 
             var command = wakeIndex + 2 < tokens.Length
                 ? string.Join(' ', tokens[(wakeIndex + 2)..])
@@ -168,10 +169,14 @@ public sealed class VoiceRecognitionService : IDisposable
             if (partial)
                 return;
 
+            if (DateTime.UtcNow - _lastCommandAt < TimeSpan.FromMilliseconds(900))
+                return;
+
             CommandRecognized?.Invoke(
                 this,
                 new VoiceCommandEventArgs(text, command, 1.0f));
 
+            _lastCommandAt = DateTime.UtcNow;
             _wakeArmed = false;
             return;
         }
@@ -182,16 +187,14 @@ public sealed class VoiceRecognitionService : IDisposable
         {
             _wakeArmed = false;
 
+            if (DateTime.UtcNow - _lastCommandAt < TimeSpan.FromMilliseconds(900))
+                return;
+
             CommandRecognized?.Invoke(
                 this,
                 new VoiceCommandEventArgs(text, text, 1.0f));
-        }
 
-        if (!partial)
-        {
-            App.LogException(
-                new InvalidOperationException($"Reconocimiento de voz: «{text}»"),
-                "Texto reconocido sin palabra de activación");
+            _lastCommandAt = DateTime.UtcNow;
         }
     }
 
