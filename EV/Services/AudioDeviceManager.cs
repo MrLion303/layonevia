@@ -1,4 +1,5 @@
 using NAudio.CoreAudioApi;
+using NAudio.Wave;
 
 namespace EV.Services;
 
@@ -10,9 +11,7 @@ public sealed class AudioDeviceManager
     public bool TryGetDeviceName(string id, out string name)
     {
         name = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(id))
-            return false;
+        if (string.IsNullOrWhiteSpace(id)) return false;
 
         try
         {
@@ -21,10 +20,61 @@ public sealed class AudioDeviceManager
             name = device.FriendlyName;
             return !string.IsNullOrWhiteSpace(name);
         }
-        catch
+        catch { return false; }
+    }
+
+    public MMDevice? TryGetInput(string? preferredId)
+        => TryGetDevice(DataFlow.Capture, preferredId);
+
+    public MMDevice? TryGetOutput(string? preferredId)
+        => TryGetDevice(DataFlow.Render, preferredId);
+
+    private static MMDevice? TryGetDevice(DataFlow flow, string? preferredId)
+    {
+        try
         {
-            return false;
+            using var enumerator = new MMDeviceEnumerator();
+
+            if (!string.IsNullOrWhiteSpace(preferredId))
+            {
+                try
+                {
+                    var preferred = enumerator.GetDevice(preferredId);
+                    if (preferred.State == DeviceState.Active)
+                        return preferred;
+                    preferred.Dispose();
+                }
+                catch { }
+            }
+
+            try
+            {
+                var fallback = enumerator.GetDefaultAudioEndpoint(
+                    flow,
+                    Role.Multimedia);
+
+                if (fallback.State == DeviceState.Active)
+                    return fallback;
+
+                fallback.Dispose();
+            }
+            catch { }
+
+            foreach (var device in enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active))
+            {
+                try
+                {
+                    return device;
+                }
+                catch
+                {
+                    device.Dispose();
+                }
+            }
         }
+        catch { }
+
+        return null;
     }
 
     private static IReadOnlyList<AudioDeviceInfo> GetDevices(DataFlow flow)
@@ -42,24 +92,14 @@ public sealed class AudioDeviceManager
                 {
                     var id = device.ID;
                     var name = device.FriendlyName;
-
                     if (!string.IsNullOrWhiteSpace(id))
-                        devices.Add(new AudioDeviceInfo(
-                            id,
-                            string.IsNullOrWhiteSpace(name) ? "Dispositivo desconocido" : name));
+                        devices.Add(new AudioDeviceInfo(id, string.IsNullOrWhiteSpace(name) ? "Dispositivo desconocido" : name));
                 }
-                catch
-                {
-                }
-                finally
-                {
-                    device.Dispose();
-                }
+                catch { }
+                finally { device.Dispose(); }
             }
         }
-        catch
-        {
-        }
+        catch { }
 
         return devices;
     }
