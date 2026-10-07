@@ -27,6 +27,7 @@ public sealed class VoiceRecognitionService : IDisposable
 
     public event EventHandler<VoiceCommandEventArgs>? CommandRecognized;
     public event EventHandler<string>? StatusChanged;
+    public event EventHandler<double>? AudioLevelChanged;
 
     public bool IsListening => _listening;
 
@@ -118,6 +119,8 @@ public sealed class VoiceRecognitionService : IDisposable
 
             if (recognizer is null)
                 return;
+
+            AudioLevelChanged?.Invoke(this, CalculateAudioLevel(e.Buffer, e.BytesRecorded));
 
             var isFinal = recognizer.AcceptWaveform(e.Buffer, e.BytesRecorded);
 
@@ -333,6 +336,25 @@ public sealed class VoiceRecognitionService : IDisposable
         }
 
         return -1;
+    }
+
+    private static double CalculateAudioLevel(byte[] buffer, int bytesRecorded)
+    {
+        if (bytesRecorded < 2)
+            return 0;
+
+        double sum = 0;
+        var samples = bytesRecorded / 2;
+
+        for (var i = 0; i < bytesRecorded - 1; i += 2)
+        {
+            var sample = (short)(buffer[i] | (buffer[i + 1] << 8));
+            var normalized = sample / 32768.0;
+            sum += normalized * normalized;
+        }
+
+        var rms = Math.Sqrt(sum / samples);
+        return Math.Clamp(rms * 5.0, 0, 1);
     }
 
     private static string ExtractText(string json)
