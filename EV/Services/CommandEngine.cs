@@ -11,6 +11,7 @@ public sealed class CommandEngine
     private readonly MemorySyncService _memory = new();
     private readonly IntentInterpreter _intentInterpreter = new();
     private readonly ConversationContext _context = new();
+    private readonly RoutineStore _routines = new();
     private readonly ConversationAiService _conversation;
 
     public CommandEngine()
@@ -35,6 +36,9 @@ public sealed class CommandEngine
 
                 case "get_preferences":
                     return ExecuteAiPreferencesTool(root);
+
+                case "run_routine":
+                    return await ExecuteAiRoutineToolAsync(root, cancellationToken);
 
                 case "open_application":
                     return RecordToolResult($"Abrir aplicación «{GetToolString(root, "application")}»", ExecuteAiApplicationTool(root, ApplicationAction.Open));
@@ -113,6 +117,34 @@ public sealed class CommandEngine
                 _context.FailTask(result.Message);
         }
         return result;
+    }
+
+    private async Task<AiToolResult> ExecuteAiRoutineToolAsync(JsonElement root, CancellationToken cancellationToken)
+    {
+        var name = GetToolString(root, "name");
+        if (string.IsNullOrWhiteSpace(name))
+            return AiToolResult.Failure("No se indicó el nombre de la rutina.");
+
+        var routine = _routines.Find(name);
+        if (routine is null)
+            return AiToolResult.Failure($"No existe una rutina llamada «{name}».");
+
+        _context.StartTask($"Ejecutar rutina «{routine.Name}»");
+
+        for (var i = 0; i < routine.Steps.Count; i++)
+        {
+            var step = routine.Steps[i];
+            var result = await ExecuteAiToolAsync(step.ToolName, step.ArgumentsJson, cancellationToken);
+
+            if (!result.Succeeded)
+            {
+                _context.FailTask(result.Message);
+                return AiToolResult.Failure($"La rutina «{routine.Name}» se detuvo en el paso {i + 1}: {result.Message}");
+            }
+        }
+
+        _context.CompleteTask();
+        return AiToolResult.Success($"Rutina «{routine.Name}» ejecutada correctamente.");
     }
 
     private AiToolResult ExecuteAiPreferencesTool(JsonElement root)
