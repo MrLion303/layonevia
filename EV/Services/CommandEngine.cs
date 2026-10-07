@@ -11,7 +11,150 @@ public sealed class CommandEngine
     private readonly MemorySyncService _memory = new();
     private readonly IntentInterpreter _intentInterpreter = new();
     private readonly ConversationContext _context = new();
-    private readonly ConversationAiService _conversation = new();
+    private readonly ConversationAiService _conversation;
+
+    public CommandEngine()
+    {
+        _conversation = new ConversationAiService(ExecuteAiToolAsync);
+    }
+
+    public async Task<AiToolResult> ExecuteAiToolAsync(
+        string toolName,
+        string argumentsJson,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var arguments = System.Text.Json.JsonDocument.Parse(argumentsJson);
+            var root = arguments.RootElement;
+
+            switch (toolName)
+            {
+                case "open_application":
+                    return ExecuteAiApplicationTool(root, ApplicationAction.Open);
+
+                case "close_application":
+                    return ExecuteAiApplicationTool(root, ApplicationAction.Close);
+
+                case "control_window":
+                    return ExecuteAiWindowTool(root);
+
+                case "system_action":
+                    return ExecuteAiSystemTool(root);
+
+                case "search_web":
+                    if (!root.TryGetProperty("query", out var query) ||
+                        string.IsNullOrWhiteSpace(query.GetString()))
+                        return AiToolResult.Failure("No se indicó qué buscar.");
+
+                    return TryOpenWeb(query.GetString()!)
+                        ? AiToolResult.Success($"Búsqueda abierta para «{query.GetString()}».")
+                        : AiToolResult.Failure("No pude abrir la búsqueda.");
+
+                case "open_folder":
+                    if (!root.TryGetProperty("folder", out var folder) ||
+                        string.IsNullOrWhiteSpace(folder.GetString()))
+                        return AiToolResult.Failure("No se indicó la carpeta.");
+
+                    return TryOpenFolder(folder.GetString()!)
+                        ? AiToolResult.Success($"Carpeta abierta: {folder.GetString()}.")
+                        : AiToolResult.Failure($"No pude abrir la carpeta «{folder.GetString()}».");
+
+                case "type_text":
+                    if (!root.TryGetProperty("text", out var text) ||
+                        string.IsNullOrEmpty(text.GetString()))
+                        return AiToolResult.Failure("No se indicó texto para escribir.");
+
+                    return TypeText(text.GetString()!)
+                        ? AiToolResult.Success("El texto fue escrito en la ventana activa.")
+                        : AiToolResult.Failure("No pude escribir el texto en la ventana activa.");
+
+                default:
+                    return AiToolResult.Failure($"Herramienta desconocida: {toolName}.");
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return AiToolResult.Failure("Los argumentos de la herramienta no eran válidos.");
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, $"Error ejecutando herramienta de IA {toolName}");
+            return AiToolResult.Failure("Windows no pudo completar esa acción.");
+        }
+    }
+
+    private static AiToolResult ExecuteAiApplicationTool(
+        System.Text.Json.JsonElement root,
+        ApplicationAction action)
+    {
+        if (!root.TryGetProperty("application", out var application) ||
+            string.IsNullOrWhiteSpace(application.GetString()))
+            return AiToolResult.Failure("No se indicó la aplicación.");
+
+        var target = application.GetString()!;
+        var result = ExecuteApplicationCommand(new ApplicationCommand(action, target));
+        return result.Succeeded
+            ? AiToolResult.Success(result.Response)
+            : AiToolResult.Failure(result.Response);
+    }
+
+    private static AiToolResult ExecuteAiWindowTool(System.Text.Json.JsonElement root)
+    {
+        if (!root.TryGetProperty("action", out var actionElement))
+            return AiToolResult.Failure("No se indicó la acción de ventana.");
+
+        var action = actionElement.GetString();
+        if (string.IsNullOrWhiteSpace(action))
+            return AiToolResult.Failure("No se indicó la acción de ventana.");
+
+        var target = root.TryGetProperty("target", out var targetElement)
+            ? targetElement.GetString() ?? string.Empty
+            : string.Empty;
+
+        var success = action switch
+        {
+            "switch" => TrySwitch(target),
+            "minimize" => TryMinimize(target),
+            "maximize" => TryMaximize(target),
+            "restore" => TryRestore(target),
+            "desktop" => ExecuteWindowCommand(new WindowCommand(WindowAction.Desktop)).Succeeded,
+            "task_switcher" => ExecuteWindowCommand(new WindowCommand(WindowAction.TaskSwitcher)).Succeeded,
+            _ => false
+        };
+
+        return success
+            ? AiToolResult.Success("La acción de ventana se ejecutó correctamente.")
+            : AiToolResult.Failure("No pude ejecutar esa acción de ventana.");
+    }
+
+    private static AiToolResult ExecuteAiSystemTool(System.Text.Json.JsonElement root)
+    {
+        if (!root.TryGetProperty("action", out var actionElement))
+            return AiToolResult.Failure("No se indicó la acción del sistema.");
+
+        var action = actionElement.GetString();
+        var systemAction = action switch
+        {
+            "settings" => SystemAction.Settings,
+            "explorer" => SystemAction.Explorer,
+            "calculator" => SystemAction.Calculator,
+            "notepad" => SystemAction.Notepad,
+            "lock" => SystemAction.Lock,
+            "mute" => SystemAction.Mute,
+            "volume_up" => SystemAction.VolumeUp,
+            "volume_down" => SystemAction.VolumeDown,
+            _ => (SystemAction?)null
+        };
+
+        if (systemAction is null)
+            return AiToolResult.Failure("No reconozco esa acción del sistema.");
+
+        var result = ExecuteSystemCommand(new SystemCommand(systemAction.Value));
+        return result.Succeeded
+            ? AiToolResult.Success(result.Response)
+            : AiToolResult.Failure(result.Response);
+    }
 
     public async Task<CommandResult> ExecuteAsync(
         string text,
