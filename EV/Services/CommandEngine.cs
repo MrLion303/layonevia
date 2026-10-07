@@ -53,6 +53,11 @@ public sealed class CommandEngine
             }
         }
 
+        if (TryGetNavigationCommand(command, out var navigationTarget))
+        {
+            return ExecuteNavigationCommand(navigationTarget);
+        }
+
         if (TryGetFileCommand(command, out var fileCommand))
         {
             return ExecuteFileCommand(fileCommand);
@@ -102,7 +107,7 @@ public sealed class CommandEngine
             $"Todavía no tengo una acción para «{command}». Podemos enseñarme esa orden después.");
     }
 
-    private static bool TryGetFileCommand(string text, out FileCommand command)
+    private bool TryGetFileCommand(string text, out FileCommand command)
     {
         command = default;
 
@@ -131,6 +136,77 @@ public sealed class CommandEngine
 
         command = new FileCommand(location, folderName, fileName);
         return true;
+    }
+
+    private bool TryGetNavigationCommand(string text, out string target)
+    {
+        target = string.Empty;
+        var normalized = Normalize(text);
+        var original = text.Trim();
+
+        foreach (var prefix in new[]
+        {
+            "entra en ",
+            "entra a ",
+            "ve a la carpeta ",
+            "ve a carpeta ",
+            "abre la carpeta ",
+            "abre carpeta ",
+            "abrir la carpeta ",
+            "abrir carpeta "
+        })
+        {
+            if (!normalized.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            target = original[prefix.Length..].Trim();
+            return target.Length > 0;
+        }
+
+        return false;
+    }
+
+    private CommandResult ExecuteNavigationCommand(string target)
+    {
+        try
+        {
+            var basePath = _context.CurrentPath;
+
+            if (string.IsNullOrWhiteSpace(basePath) || !Directory.Exists(basePath))
+                basePath = ResolveNaturalLocation(target);
+
+            var normalizedTarget = Normalize(target);
+            var knownPath = normalizedTarget switch
+            {
+                "escritorio" => Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                "documentos" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "descargas" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
+                "musica" => Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
+                "imagenes" or "fotos" => Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+                "videos" => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
+                _ => null
+            };
+
+            if (!string.IsNullOrWhiteSpace(knownPath) && Directory.Exists(knownPath))
+            {
+                StartShell(knownPath);
+                _context.SetOpenedFolder(knownPath);
+                return CommandResult.Success($"Abriendo {target}, señor.");
+            }
+
+            var folder = FindDirectory(basePath, target);
+            if (folder is null)
+                return CommandResult.Failure($"No encontré la carpeta «{target}» dentro de esa ubicación.");
+
+            StartShell(folder);
+            _context.SetOpenedFolder(folder);
+            return CommandResult.Success($"Entrando en «{Path.GetFileName(folder)}», señor.");
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo navegar a una carpeta");
+            return CommandResult.Failure("No pude abrir esa carpeta.");
+        }
     }
 
     private CommandResult ExecuteFileCommand(FileCommand command)
