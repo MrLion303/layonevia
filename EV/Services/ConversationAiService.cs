@@ -138,6 +138,21 @@ public sealed class ConversationAiService
                             call_id = call.CallId,
                             output = result.ToJson()
                         });
+
+                        if (!result.Succeeded)
+                        {
+                            input.Add(new
+                            {
+                                type = "function_call_output",
+                                call_id = call.CallId,
+                                output = JsonSerializer.Serialize(new
+                                {
+                                    succeeded = false,
+                                    message = result.Message,
+                                    task_rule = "Este paso falló. No continúes con pasos que dependan de él."
+                                })
+                            });
+                        }
                     }
 
                     continue;
