@@ -6,11 +6,11 @@
    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="24" Margin="0,0,0,16">
     <StackPanel>
      <TextBlock Text="General" FontSize="20" FontWeight="SemiBold"/>
-     <CheckBox Content="Iniciar EV con Windows" Foreground="{StaticResource TextBrush}" Margin="0,18,0,8"/>
-     <CheckBox Content="Responder por voz" Foreground="{StaticResource TextBrush}" IsChecked="True" Margin="0,8"/>
-     <CheckBox Content="Escuchar la palabra de activación" Foreground="{StaticResource TextBrush}" IsChecked="True" Margin="0,8"/>
+     <CheckBox x:Name="StartWithWindowsBox" Content="Iniciar EV con Windows" Foreground="{StaticResource TextBrush}" Margin="0,18,0,8" Checked="GeneralSetting_Changed" Unchecked="GeneralSetting_Changed"/>
+     <CheckBox x:Name="VoiceResponseBox" Content="Responder por voz" Foreground="{StaticResource TextBrush}" IsChecked="True" Margin="0,8" Checked="GeneralSetting_Changed" Unchecked="GeneralSetting_Changed"/>
+     <CheckBox x:Name="WakeWordBox" Content="Escuchar la palabra de activación" Foreground="{StaticResource TextBrush}" IsChecked="True" Margin="0,8" Checked="GeneralSetting_Changed" Unchecked="GeneralSetting_Changed"/>
      <TextBlock Text="Palabra de activación" FontWeight="SemiBold" Margin="0,22,0,6"/>
-     <TextBox Text="Oye ibi" MaxWidth="300"/>
+     <TextBox Text="Oye ibi" MaxWidth="300" IsReadOnly="True"/>
     </StackPanel>
    </Border>
 
