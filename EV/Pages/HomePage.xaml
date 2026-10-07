@@ -6,8 +6,8 @@
    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="28" Margin="0,0,0,18">
     <StackPanel>
      <TextBlock Text="Hola, señor." FontSize="30" FontWeight="SemiBold"/>
-     <TextBlock Text="EV está lista para recibir tus órdenes." FontSize="15" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0"/>
-     <TextBlock Text="Di «EV» seguido de una instrucción. Por ejemplo: «EV, abre Discord»." FontSize="14" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,18,0,0"/>
+     <TextBlock Text="EV está lista para recibir tus órdenes. Su nombre se escribe EV y se pronuncia «ibi»." FontSize="15" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+     <TextBlock Text="Di «ibi» seguido de una instrucción. Por ejemplo: «ibi, abre Discord»." FontSize="14" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,18,0,0"/>
     </StackPanel>
    </Border>
    <Grid>
@@ -24,8 +24,8 @@
       <TextBlock Text="Memoria" FontSize="16" FontWeight="SemiBold"/>
       <TextBlock Text="Sincronización con GitHub preparada para una próxima etapa." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,12,0,0"/>
      </StackPanel>
-    </Border>
-   </Grid>
-  </StackPanel>
+   </Border>
+  </Grid>
+ </StackPanel>
  </ScrollViewer>
 </UserControl>
