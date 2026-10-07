@@ -1,14 +1,31 @@
 <UserControl x:Class="EV.Pages.MemoryPage"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
- <StackPanel>
-  <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="24">
-   <StackPanel>
-    <TextBlock Text="Memoria de EV" FontSize="20" FontWeight="SemiBold"/>
-    <TextBlock Text="Las memorias permanentes se sincronizarán con GitHub cuando haya conexión. Por seguridad, no se deben guardar en un repositorio público." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,20"/>
-    <TextBlock Text="Ejemplo" FontWeight="SemiBold"/>
-    <TextBlock Text="«EV, recuerda que siempre debes llamarme Señor.»" Foreground="{StaticResource AccentBrush}" Margin="0,7,0,0"/>
-   </StackPanel>
-  </Border>
- </StackPanel>
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <StackPanel>
+   <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="24">
+    <StackPanel>
+     <TextBlock Text="Memoria de EV" FontSize="20" FontWeight="SemiBold"/>
+     <TextBlock Text="EV guarda una copia local y sincroniza la memoria permanente con tu repositorio privado de GitHub. Así puedes instalar EV en otra PC y recuperar lo que ya recuerda." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,20"/>
+     <Border Background="{StaticResource BackgroundBrush}" CornerRadius="12" Padding="16" Margin="0,0,0,14">
+      <StackPanel>
+       <TextBlock Text="Cuenta de GitHub" FontWeight="SemiBold"/>
+       <TextBlock x:Name="AccountStatus" Text="Sin vincular" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,12"/>
+       <StackPanel Orientation="Horizontal">
+        <Button x:Name="LinkButton" Content="Vincular GitHub" Padding="18,8" Click="LinkButton_Click" Margin="0,0,8,0"/>
+        <Button Content="Sincronizar ahora" Padding="18,8" Click="SyncButton_Click"/>
+       </StackPanel>
+      </StackPanel>
+     </Border>
+     <TextBlock Text="Cómo funcionará" FontWeight="SemiBold" Margin="0,4,0,8"/>
+     <TextBlock Text="1. Vinculas tu cuenta de GitHub una sola vez en cada PC." Foreground="{StaticResource MutedBrush}" Margin="0,2"/>
+     <TextBlock Text="2. EV usa un repositorio privado para guardar la memoria." Foreground="{StaticResource MutedBrush}" Margin="0,2"/>
+     <TextBlock Text="3. Cuando EV vuelve a tener conexión, sincroniza los cambios." Foreground="{StaticResource MutedBrush}" Margin="0,2"/>
+     <TextBlock Text="4. Si instalas EV en otra PC y vinculas la misma cuenta, recupera la memoria." Foreground="{StaticResource MutedBrush}" Margin="0,2,0,16"/>
+     <TextBlock Text="Ejemplo" FontWeight="SemiBold"/>
+     <TextBlock Text="«EV, recuerda que siempre debes llamarme Señor.»" Foreground="{StaticResource AccentBrush}" Margin="0,7,0,0"/>
+    </StackPanel>
+   </Border>
+  </StackPanel>
+ </ScrollViewer>
 </UserControl>
