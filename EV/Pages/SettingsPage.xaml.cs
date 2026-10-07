@@ -15,6 +15,17 @@ public partial class SettingsPage : UserControl
     public SettingsPage()
     {
         InitializeComponent();
+        Loaded += SettingsPage_Loaded;
+    }
+
+    private bool _loaded;
+
+    private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (_loaded)
+            return;
+
+        _loaded = true;
         LoadGeneralSettings();
         LoadAiSettings();
     }
@@ -38,7 +49,7 @@ public partial class SettingsPage : UserControl
 
     private void GeneralSetting_Changed(object sender, RoutedEventArgs e)
     {
-        if (_loadingGeneral)
+        if (_loadingGeneral || !_loaded)
             return;
 
         try
@@ -65,8 +76,8 @@ public partial class SettingsPage : UserControl
         try
         {
             var settings = _aiSettings.Load();
-            ModelBox.Text = settings.Model;
-            EndpointBox.Text = settings.Endpoint;
+            ModelBox.Text = settings.Model ?? "gpt-6-luna";
+            EndpointBox.Text = settings.Endpoint ?? "https://api.openai.com/v1/responses";
             AiStatus.Text = string.IsNullOrWhiteSpace(settings.ApiKey)
                 ? "Inteligencia no configurada."
                 : "Inteligencia configurada.";
@@ -120,7 +131,7 @@ public partial class SettingsPage : UserControl
             {
                 ApiKey = null,
                 Model = current.Model,
-                Endpoint = current.Endpoint
+                Endpoint = current.Endpoint ?? "https://api.openai.com/v1/responses"
             });
 
             ApiKeyBox.Clear();
