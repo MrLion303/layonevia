@@ -14,6 +14,7 @@ public sealed class CommandEngine
     private readonly ConversationContext _context = new();
     private readonly RoutineStore _routines = new();
     private readonly ConversationAiService _conversation;
+    private bool _runningRoutine;
 
     public CommandEngine()
     {
@@ -44,6 +45,12 @@ public sealed class CommandEngine
                 case "create_routine":
                     return ExecuteAiCreateRoutineTool(root);
 
+                case "create_routine_from_task":
+                    return ExecuteAiCreateRoutineFromTaskTool(root);
+
+                case "modify_routine_step":
+                    return ExecuteAiModifyRoutineStepTool(root);
+
                 case "list_routines":
                     return ExecuteAiListRoutinesTool();
 
@@ -57,16 +64,16 @@ public sealed class CommandEngine
                     return ExecuteAiEditRoutineTool(root);
 
                 case "open_application":
-                    return RecordToolResult($"Abrir aplicación «{GetToolString(root, "application")}»", ExecuteAiApplicationTool(root, ApplicationAction.Open));
+                    return RecordToolResult(toolName, argumentsJson, $"Abrir aplicación «{GetToolString(root, "application")}»", ExecuteAiApplicationTool(root, ApplicationAction.Open));
 
                 case "close_application":
-                    return RecordToolResult($"Cerrar aplicación «{GetToolString(root, "application")}»", ExecuteAiApplicationTool(root, ApplicationAction.Close));
+                    return RecordToolResult(toolName, argumentsJson, $"Cerrar aplicación «{GetToolString(root, "application")}»", ExecuteAiApplicationTool(root, ApplicationAction.Close));
 
                 case "control_window":
-                    return RecordToolResult($"Controlar ventana ({GetToolString(root, "action")})", ExecuteAiWindowTool(root));
+                    return RecordToolResult(toolName, argumentsJson, $"Controlar ventana ({GetToolString(root, "action")})", ExecuteAiWindowTool(root));
 
                 case "system_action":
-                    return RecordToolResult($"Acción del sistema «{GetToolString(root, "action")}»", ExecuteAiSystemTool(root));
+                    return RecordToolResult(toolName, argumentsJson, $"Acción del sistema «{GetToolString(root, "action")}»", ExecuteAiSystemTool(root));
 
                 case "search_web":
                     if (!root.TryGetProperty("query", out var query) ||
@@ -76,7 +83,7 @@ public sealed class CommandEngine
                     var webResult = TryOpenWeb(query.GetString()!)
                         ? AiToolResult.Success($"Búsqueda abierta para «{query.GetString()}».")
                         : AiToolResult.Failure("No pude abrir la búsqueda.");
-                    return RecordToolResult($"Buscar en Internet «{query.GetString()}»", webResult);
+                    return RecordToolResult(toolName, argumentsJson, $"Buscar en Internet «{query.GetString()}»", webResult);
 
                 case "open_folder":
                     if (!root.TryGetProperty("folder", out var folder) ||
@@ -86,7 +93,7 @@ public sealed class CommandEngine
                     var folderResult = TryOpenFolder(folder.GetString()!)
                         ? AiToolResult.Success($"Carpeta abierta: {folder.GetString()}.")
                         : AiToolResult.Failure($"No pude abrir la carpeta «{folder.GetString()}».");
-                    return RecordToolResult($"Abrir carpeta «{folder.GetString()}»", folderResult);
+                    return RecordToolResult(toolName, argumentsJson, $"Abrir carpeta «{folder.GetString()}»", folderResult);
 
                 case "type_text":
                     if (!root.TryGetProperty("text", out var text) ||
@@ -96,16 +103,16 @@ public sealed class CommandEngine
                     var typeResult = TypeText(text.GetString()!)
                         ? AiToolResult.Success("El texto fue escrito en la ventana activa.")
                         : AiToolResult.Failure("No pude escribir el texto en la ventana activa.");
-                    return RecordToolResult("Escribir texto", typeResult);
+                    return RecordToolResult(toolName, argumentsJson, "Escribir texto", typeResult);
 
                 case "find_file":
-                    return RecordToolResult("Buscar archivo", ExecuteAiFindFileTool(root));
+                    return RecordToolResult(toolName, argumentsJson, "Buscar archivo", ExecuteAiFindFileTool(root));
 
                 case "open_file":
-                    return RecordToolResult("Abrir archivo", ExecuteAiOpenFileTool(root));
+                    return RecordToolResult(toolName, argumentsJson, "Abrir archivo", ExecuteAiOpenFileTool(root));
 
                 case "file_action":
-                    return RecordToolResult("Operación de archivo", ExecuteAiFileActionTool(root));
+                    return RecordToolResult(toolName, argumentsJson, "Operación de archivo", ExecuteAiFileActionTool(root));
 
                 default:
                     return AiToolResult.Failure($"Herramienta desconocida: {toolName}.");
@@ -122,9 +129,17 @@ public sealed class CommandEngine
         }
     }
 
-    private AiToolResult RecordToolResult(string action, AiToolResult result)
+    private AiToolResult RecordToolResult(
+        string toolName,
+        string argumentsJson,
+        string action,
+        AiToolResult result)
     {
         _context.RecordToolAction(action, result.Message);
+
+        if (result.Succeeded && !_runningRoutine)
+            _context.RecordExecutedTool(toolName, argumentsJson, action, result.Message);
+
         if (_context.CurrentTask is not null)
         {
             if (result.Succeeded)
@@ -132,8 +147,180 @@ public sealed class CommandEngine
             else
                 _context.FailTask(result.Message);
         }
+
         return result;
     }
+
+    private AiToolResult ExecuteAiCreateRoutineFromTaskTool(JsonElement root)
+    {
+        var name = GetToolString(root, "name").Trim();
+        var description = GetToolString(root, "description").Trim();
+
+        if (string.IsNullOrWhiteSpace(name))
+            return AiToolResult.Failure("No se indicó el nombre de la rutina.");
+
+        if (_routines.Find(name) is not null)
+            return AiToolResult.Failure($"Ya existe una rutina llamada «{name}».");
+
+        var sequence = _context.RecentToolSequence;
+        if (sequence.Count < 2)
+            return AiToolResult.Failure("No hay una secuencia reciente con suficientes acciones para convertirla en rutina.");
+
+        var steps = sequence
+            .Where(x => IsRoutineStepAllowed(x.ToolName))
+            .Select(x => new RoutineStep
+            {
+                ToolName = x.ToolName,
+                ArgumentsJson = x.ArgumentsJson
+            })
+            .ToList();
+
+        if (steps.Count < 2)
+            return AiToolResult.Failure("La secuencia reciente no contiene suficientes acciones compatibles con rutinas.");
+
+        var routine = new EvRoutine
+        {
+            Name = name,
+            Description = string.IsNullOrWhiteSpace(description)
+                ? $"Rutina creada a partir de la última secuencia de acciones de EV."
+                : description,
+            Steps = steps
+        };
+
+        var routines = _routines.Load().ToList();
+        routines.Add(routine);
+        _routines.Save(routines);
+        _context.ClearRecentToolSequence();
+
+        return AiToolResult.Success($"Rutina «{name}» creada a partir de la secuencia reciente con {steps.Count} pasos.");
+    }
+
+    private AiToolResult ExecuteAiModifyRoutineStepTool(JsonElement root)
+    {
+        var name = GetToolString(root, "name").Trim();
+        var action = GetToolString(root, "action").Trim().ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(name))
+            return AiToolResult.Failure("No se indicó el nombre de la rutina.");
+
+        var routine = _routines.Find(name);
+        if (routine is null)
+            return AiToolResult.Failure($"No existe una rutina llamada «{name}».");
+
+        if (routine.Steps.Count == 0 && action != "add")
+            return AiToolResult.Failure("La rutina no tiene pasos que modificar.");
+
+        if (!root.TryGetProperty("index", out var indexElement) ||
+            !indexElement.TryGetInt32(out var index))
+            index = -1;
+
+        switch (action)
+        {
+            case "add":
+            {
+                if (!root.TryGetProperty("step", out var stepElement) ||
+                    stepElement.ValueKind != JsonValueKind.Object)
+                    return AiToolResult.Failure("Para añadir un paso debes indicar step.");
+
+                var step = ParseRoutineStep(stepElement);
+                if (step is null)
+                    return AiToolResult.Failure("El nuevo paso no es válido.");
+
+                var insertAt = index < 0 ? routine.Steps.Count : index;
+                if (insertAt < 0 || insertAt > routine.Steps.Count)
+                    return AiToolResult.Failure("La posición del nuevo paso no es válida.");
+
+                routine.Steps.Insert(insertAt, step);
+                break;
+            }
+
+            case "remove":
+                if (index < 0 || index >= routine.Steps.Count)
+                    return AiToolResult.Failure("El índice del paso que quieres eliminar no es válido.");
+
+                routine.Steps.RemoveAt(index);
+                break;
+
+            case "move":
+            {
+                if (index < 0 || index >= routine.Steps.Count)
+                    return AiToolResult.Failure("El índice del paso que quieres mover no es válido.");
+
+                if (!root.TryGetProperty("new_index", out var newIndexElement) ||
+                    !newIndexElement.TryGetInt32(out var newIndex) ||
+                    newIndex < 0 || newIndex >= routine.Steps.Count)
+                    return AiToolResult.Failure("La nueva posición no es válida.");
+
+                var step = routine.Steps[index];
+                routine.Steps.RemoveAt(index);
+                routine.Steps.Insert(newIndex, step);
+                break;
+            }
+
+            case "replace":
+            {
+                if (index < 0 || index >= routine.Steps.Count)
+                    return AiToolResult.Failure("El índice del paso que quieres reemplazar no es válido.");
+
+                if (!root.TryGetProperty("step", out var stepElement) ||
+                    stepElement.ValueKind != JsonValueKind.Object)
+                    return AiToolResult.Failure("Para reemplazar un paso debes indicar step.");
+
+                var step = ParseRoutineStep(stepElement);
+                if (step is null)
+                    return AiToolResult.Failure("El nuevo paso no es válido.");
+
+                routine.Steps[index] = step;
+                break;
+            }
+
+            default:
+                return AiToolResult.Failure("La acción debe ser add, remove, move o replace.");
+        }
+
+        if (routine.Steps.Count == 0)
+            return AiToolResult.Failure("Una rutina no puede quedarse sin pasos.");
+
+        return _routines.Update(routine)
+            ? AiToolResult.Success($"Rutina «{routine.Name}» modificada. Ahora tiene {routine.Steps.Count} pasos.")
+            : AiToolResult.Failure("No pude guardar los cambios de la rutina.");
+    }
+
+    private static RoutineStep? ParseRoutineStep(JsonElement element)
+    {
+        if (!element.TryGetProperty("tool", out var toolElement) ||
+            !element.TryGetProperty("arguments", out var argumentsElement))
+            return null;
+
+        var tool = toolElement.GetString()?.Trim();
+        var arguments = argumentsElement.GetString() ?? "{}";
+
+        if (string.IsNullOrWhiteSpace(tool) || !IsRoutineStepAllowed(tool))
+            return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(arguments);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        return new RoutineStep
+        {
+            ToolName = tool,
+            ArgumentsJson = arguments
+        };
+    }
+
+    private static bool IsRoutineStepAllowed(string toolName) =>
+        toolName is
+            "open_application" or "close_application" or "control_window" or
+            "system_action" or "search_web" or "open_folder" or "type_text" or
+            "find_file" or "open_file" or "file_action";
 
     private AiToolResult ExecuteAiCreateRoutineTool(JsonElement root)
     {
@@ -304,8 +491,11 @@ public sealed class CommandEngine
             return AiToolResult.Failure("Una rutina no puede ejecutar otra rutina. Esto evita recursión y bucles.");
 
         _context.StartTask($"Ejecutar rutina «{routine.Name}»");
+        _runningRoutine = true;
 
-        for (var i = 0; i < routine.Steps.Count; i++)
+        try
+        {
+            for (var i = 0; i < routine.Steps.Count; i++)
         {
             var step = routine.Steps[i];
             var result = await ExecuteAiToolAsync(step.ToolName, step.ArgumentsJson, cancellationToken);
@@ -315,10 +505,15 @@ public sealed class CommandEngine
                 _context.FailTask(result.Message);
                 return AiToolResult.Failure($"La rutina «{routine.Name}» se detuvo en el paso {i + 1}: {result.Message}");
             }
-        }
+            }
 
-        _context.CompleteTask();
-        return AiToolResult.Success($"Rutina «{routine.Name}» ejecutada correctamente.");
+            _context.CompleteTask();
+            return AiToolResult.Success($"Rutina «{routine.Name}» ejecutada correctamente.");
+        }
+        finally
+        {
+            _runningRoutine = false;
+        }
     }
 
     private AiToolResult ExecuteAiPreferencesTool(JsonElement root)
