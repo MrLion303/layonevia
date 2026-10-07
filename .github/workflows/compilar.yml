@@ -35,6 +35,14 @@ jobs:
       - name: Publicar EV
         run: dotnet publish EV/EV.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o salida
 
+      - name: Incluir modelo de voz en la publicación
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:GITHUB_WORKSPACE "EV\models"
+          $target = Join-Path $env:GITHUB_WORKSPACE "salida\models"
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          Copy-Item -Path (Join-Path $source "vosk-model-small-es-0.42") -Destination $target -Recurse -Force
+
       - name: Subir EV
         uses: actions/upload-artifact@v4
         with:
