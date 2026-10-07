@@ -194,16 +194,19 @@ public sealed class VoiceRecognitionService : IDisposable
 
     private static int FindWakePhrase(string[] tokens)
     {
-        for (var i = 0; i < tokens.Length - 1; i++)
+        for (var i = 0; i < tokens.Length; i++)
         {
-            if (IsCloseToOye(tokens[i]) && IsCloseToIbi(tokens[i + 1]))
-                return i;
+            if (!IsCloseToOye(tokens[i]))
+                continue;
 
-            if (i + 2 < tokens.Length &&
-                IsCloseToOye(tokens[i]) &&
-                tokens[i + 1] is "y" or "e" &&
-                IsCloseToIbi(tokens[i + 2]))
-                return i;
+            for (var j = i + 1; j < Math.Min(tokens.Length, i + 4); j++)
+            {
+                if (tokens[j] is "y" or "e")
+                    continue;
+
+                if (IsCloseToIbi(tokens[j]))
+                    return i;
+            }
         }
 
         return -1;
@@ -268,9 +271,13 @@ public sealed class VoiceRecognitionService : IDisposable
                     return number;
             }
 
-            var defaultNumber = FindWaveInDeviceByName(
-                settings.PreferredInputName);
+            var defaultName = GetDefaultInputName();
 
+            var defaultNumber = FindWaveInDeviceByName(defaultName);
+            if (defaultNumber >= 0)
+                return defaultNumber;
+
+            defaultNumber = FindWaveInDeviceByName(settings.PreferredInputName);
             if (defaultNumber >= 0)
                 return defaultNumber;
         }
@@ -280,6 +287,23 @@ public sealed class VoiceRecognitionService : IDisposable
         }
 
         return WaveInEvent.DeviceCount > 0 ? 0 : -1;
+    }
+
+    private static string? GetDefaultInputName()
+    {
+        try
+        {
+            using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+            using var device = enumerator.GetDefaultAudioEndpoint(
+                NAudio.CoreAudioApi.DataFlow.Capture,
+                NAudio.CoreAudioApi.Role.Multimedia);
+
+            return device.FriendlyName;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static int FindWaveInDeviceByName(string? targetName)
@@ -293,10 +317,12 @@ public sealed class VoiceRecognitionService : IDisposable
             {
                 var capabilities = WaveInEvent.GetCapabilities(i);
 
-                if (string.Equals(
-                        Normalize(capabilities.ProductName),
-                        Normalize(targetName),
-                        StringComparison.OrdinalIgnoreCase))
+                var deviceName = Normalize(capabilities.ProductName);
+                var requestedName = Normalize(targetName);
+
+                if (string.Equals(deviceName, requestedName, StringComparison.OrdinalIgnoreCase) ||
+                    deviceName.Contains(requestedName, StringComparison.OrdinalIgnoreCase) ||
+                    requestedName.Contains(deviceName, StringComparison.OrdinalIgnoreCase))
                 {
                     return i;
                 }
