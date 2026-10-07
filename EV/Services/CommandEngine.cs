@@ -50,6 +50,12 @@ public sealed class CommandEngine
                 case "delete_routine":
                     return ExecuteAiDeleteRoutineTool(root);
 
+                case "inspect_routine":
+                    return ExecuteAiInspectRoutineTool(root);
+
+                case "edit_routine":
+                    return ExecuteAiEditRoutineTool(root);
+
                 case "open_application":
                     return RecordToolResult($"Abrir aplicación «{GetToolString(root, "application")}»", ExecuteAiApplicationTool(root, ApplicationAction.Open));
 
@@ -166,6 +172,95 @@ public sealed class CommandEngine
         return AiToolResult.Success($"Rutina «{name}» creada con {routine.Steps.Count} pasos.");
     }
 
+    private AiToolResult ExecuteAiInspectRoutineTool(JsonElement root)
+    {
+        var name = GetToolString(root, "name").Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            return AiToolResult.Failure("No se indicó el nombre de la rutina.");
+
+        var routine = _routines.Find(name);
+        if (routine is null)
+            return AiToolResult.Failure($"No existe una rutina llamada «{name}».");
+
+        var lines = new List<string>
+        {
+            $"Rutina: {routine.Name}",
+            $"Descripción: {(string.IsNullOrWhiteSpace(routine.Description) ? "Sin descripción." : routine.Description)}",
+            $"Pasos: {routine.Steps.Count}"
+        };
+
+        for (var i = 0; i < routine.Steps.Count; i++)
+            lines.Add($"{i + 1}. {routine.Steps[i].ToolName} → {routine.Steps[i].ArgumentsJson}");
+
+        return AiToolResult.Success(string.Join(Environment.NewLine, lines));
+    }
+
+    private AiToolResult ExecuteAiEditRoutineTool(JsonElement root)
+    {
+        var name = GetToolString(root, "name").Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            return AiToolResult.Failure("No se indicó el nombre de la rutina.");
+
+        var routine = _routines.Find(name);
+        if (routine is null)
+            return AiToolResult.Failure($"No existe una rutina llamada «{name}».");
+
+        if (root.TryGetProperty("new_name", out var newNameElement))
+        {
+            var newName = newNameElement.GetString()?.Trim();
+            if (string.IsNullOrWhiteSpace(newName))
+                return AiToolResult.Failure("El nuevo nombre no puede estar vacío.");
+
+            if (!string.Equals(newName, routine.Name, StringComparison.OrdinalIgnoreCase) &&
+                _routines.Find(newName) is not null)
+                return AiToolResult.Failure($"Ya existe una rutina llamada «{newName}».");
+
+            routine.Name = newName;
+        }
+
+        if (root.TryGetProperty("description", out var descriptionElement))
+            routine.Description = descriptionElement.GetString()?.Trim() ?? "";
+
+        if (root.TryGetProperty("steps", out var steps))
+        {
+            if (steps.ValueKind != JsonValueKind.Array || steps.GetArrayLength() == 0)
+                return AiToolResult.Failure("La rutina necesita al menos un paso.");
+
+            var newSteps = new List<RoutineStep>();
+            foreach (var step in steps.EnumerateArray())
+            {
+                var tool = step.TryGetProperty("tool", out var toolElement)
+                    ? toolElement.GetString()?.Trim()
+                    : null;
+                var arguments = step.TryGetProperty("arguments", out var argumentsElement)
+                    ? argumentsElement.GetString()
+                    : "{}";
+
+                if (string.IsNullOrWhiteSpace(tool))
+                    return AiToolResult.Failure("La rutina contiene un paso sin herramienta.");
+
+                try
+                {
+                    using var document = JsonDocument.Parse(arguments ?? "{}");
+                    if (document.RootElement.ValueKind != JsonValueKind.Object)
+                        return AiToolResult.Failure($"Los argumentos del paso «{tool}» no son un objeto JSON.");
+                }
+                catch (JsonException)
+                {
+                    return AiToolResult.Failure($"Los argumentos del paso «{tool}» no son JSON válido.");
+                }
+
+                newSteps.Add(new RoutineStep { ToolName = tool, ArgumentsJson = arguments ?? "{}" });
+            }
+
+            routine.Steps = newSteps;
+        }
+
+        return _routines.Update(routine)
+            ? AiToolResult.Success($"Rutina «{routine.Name}» actualizada correctamente.")
+            : AiToolResult.Failure("No pude guardar los cambios de la rutina.");
+    }
+
     private AiToolResult ExecuteAiListRoutinesTool()
     {
         var routines = _routines.Load();
@@ -201,6 +296,12 @@ public sealed class CommandEngine
         var routine = _routines.Find(name);
         if (routine is null)
             return AiToolResult.Failure($"No existe una rutina llamada «{name}».");
+
+        if (routine.Steps.Count == 0)
+            return AiToolResult.Failure($"La rutina «{routine.Name}» no tiene pasos.");
+
+        if (routine.Steps.Any(x => string.Equals(x.ToolName, "run_routine", StringComparison.OrdinalIgnoreCase)))
+            return AiToolResult.Failure("Una rutina no puede ejecutar otra rutina. Esto evita recursión y bucles.");
 
         _context.StartTask($"Ejecutar rutina «{routine.Name}»");
 
