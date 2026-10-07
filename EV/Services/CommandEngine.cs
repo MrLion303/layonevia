@@ -227,7 +227,7 @@ public sealed class CommandEngine
             return AiToolResult.Failure("No se indicó el tema de la preferencia.");
 
         var tokens = Tokenize(topic);
-        var matches = _memory.Load()
+        var matches = _memory.LoadLocalMemory()
             .Where(x => string.Equals(x.Category, "preference", StringComparison.OrdinalIgnoreCase))
             .Where(x => Tokenize((x.Subject ?? "") + " " + x.Text).Any(tokens.Contains))
             .OrderByDescending(x => x.UpdatedAt)
