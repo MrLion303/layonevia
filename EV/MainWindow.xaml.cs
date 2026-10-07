@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using EV.Pages;
 using EV.Services;
 
@@ -10,6 +11,8 @@ public partial class MainWindow : Window
     private readonly VoiceRecognitionService _voiceRecognition = new();
     private readonly VoiceOutputService _voiceOutput = new();
     private readonly CommandEngine _commandEngine = new();
+    private readonly MemorySyncService _memorySync = new();
+    private readonly DispatcherTimer _memorySyncTimer;
 
     private HomePage? _home;
     private AudioPage? _audio;
@@ -24,8 +27,41 @@ public partial class MainWindow : Window
         _voiceRecognition.AudioLevelChanged += VoiceRecognition_AudioLevelChanged;
         _voiceRecognition.CommandRecognized += VoiceRecognition_CommandRecognized;
 
+        _memorySyncTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
+        _memorySyncTimer.Tick += MemorySyncTimer_Tick;
+        _memorySyncTimer.Start();
+
         ShowPage("Inicio", GetHome());
         _voiceRecognition.Start();
+        _ = SyncMemoryOnStartupAsync();
+    }
+
+    private async Task SyncMemoryOnStartupAsync()
+    {
+        try
+        {
+            if (_memorySync.GetAccount() is null)
+                return;
+
+            await _memorySync.SyncAsync();
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo sincronizar la memoria al iniciar EV");
+        }
+    }
+
+    private async void MemorySyncTimer_Tick(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_memorySync.GetAccount() is not null)
+                await _memorySync.SyncAsync();
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo sincronizar la memoria automáticamente");
+        }
     }
 
     private HomePage GetHome() => _home ??= new HomePage();
@@ -107,7 +143,12 @@ public partial class MainWindow : Window
 
             var result = await _commandEngine.ExecuteAsync(e.Command);
 
+            _voiceRecognition.Stop();
+            VoiceStatusText.Text = "Hablando...";
             await _voiceOutput.SpeakAsync(result.Response);
+
+            if (!IsClosed)
+                _voiceRecognition.Start();
 
             VoiceStatusText.Text = _voiceRecognition.IsListening
                 ? "Escuchando «Oye ibi»"
@@ -133,6 +174,8 @@ public partial class MainWindow : Window
     {
         _voiceRecognition.StatusChanged -= VoiceRecognition_StatusChanged;
         _voiceRecognition.AudioLevelChanged -= VoiceRecognition_AudioLevelChanged;
+        _memorySyncTimer.Stop();
+        _memorySyncTimer.Tick -= MemorySyncTimer_Tick;
         _voiceRecognition.Dispose();
         _voiceOutput.Dispose();
         if (_audio is not null)
