@@ -35,6 +35,19 @@ public sealed class RoutineStore
 
     public EvRoutine? Find(string name)
         => Load().FirstOrDefault(x => string.Equals(x.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    public bool Update(EvRoutine routine)
+    {
+        var routines = Load().ToList();
+        var index = routines.FindIndex(x => string.Equals(x.Id, routine.Id, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+            return false;
+
+        routine.UpdatedAt = DateTimeOffset.UtcNow;
+        routines[index] = routine;
+        Save(routines);
+        return true;
+    }
 }
 
 public sealed class EvRoutine
