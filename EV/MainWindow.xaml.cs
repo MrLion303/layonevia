@@ -21,6 +21,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _voiceRecognition.StatusChanged += VoiceRecognition_StatusChanged;
+        _voiceRecognition.AudioLevelChanged += VoiceRecognition_AudioLevelChanged;
         _voiceRecognition.CommandRecognized += VoiceRecognition_CommandRecognized;
 
         ShowPage("Inicio", GetHome());
@@ -61,6 +62,20 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
+    }
+
+    private void VoiceRecognition_AudioLevelChanged(object? sender, double level)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => VoiceRecognition_AudioLevelChanged(sender, level));
+            return;
+        }
+
+        VoiceWave.SetLevel(level);
+        VoiceAudioText.Text = level > 0.03
+            ? $"Micrófono: recibiendo audio · {level:P0}"
+            : "Micrófono: escuchando...";
     }
 
     private void VoiceRecognition_StatusChanged(object? sender, string status)
@@ -116,6 +131,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _voiceRecognition.StatusChanged -= VoiceRecognition_StatusChanged;
+        _voiceRecognition.AudioLevelChanged -= VoiceRecognition_AudioLevelChanged;
         _voiceRecognition.Dispose();
         _voiceOutput.Dispose();
         if (_audio is not null)
