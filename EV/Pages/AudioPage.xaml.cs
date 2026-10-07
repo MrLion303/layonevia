@@ -1,9 +1,7 @@
-using System.Speech.Synthesis;
 using System.Windows;
 using System.Windows.Controls;
 using EV.Services;
 using NAudio.CoreAudioApi;
-using NAudio.Wave;
 
 namespace EV.Pages;
 
@@ -11,7 +9,7 @@ public partial class AudioPage : UserControl, IDisposable
 {
     private readonly AudioDeviceManager _devices = new();
     private readonly AudioSettingsStore _settingsStore = new();
-    private readonly SpeechSynthesizer _speaker = new();
+    private readonly VoiceOutputService _voice = new();
     private readonly List<AudioDeviceOption> _inputs = [];
     private readonly List<AudioDeviceOption> _outputs = [];
     private bool _loading;
