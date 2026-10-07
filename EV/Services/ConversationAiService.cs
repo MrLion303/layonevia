@@ -298,6 +298,18 @@ public sealed class ConversationAiService
             {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"description":{"type":"string","description":"Descripción breve de lo que hace."},"steps":{"type":"array","description":"Pasos ordenados que componen la rutina.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta, por ejemplo {"application":"Chrome"}"}"},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name","description","steps"],"additionalProperties":false}
             """),
         FunctionTool(
+            "inspect_routine",
+            "Muestra exactamente la descripción y los pasos de una rutina guardada.",
+            """
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."}},"required":["name"],"additionalProperties":false}
+            """),
+        FunctionTool(
+            "edit_routine",
+            "Edita una rutina existente. Solo úsala cuando el usuario pida explícitamente modificarla.",
+            """
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre actual de la rutina."},"new_name":{"type":"string","description":"Nuevo nombre opcional."},"description":{"type":"string","description":"Nueva descripción opcional."},"steps":{"type":"array","description":"Nueva lista completa de pasos, en el orden deseado.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta."}},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name"],"additionalProperties":false}
+            """),
+        FunctionTool(
             "list_routines",
             "Lista las rutinas persistentes disponibles del usuario.",
             """
