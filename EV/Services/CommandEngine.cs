@@ -169,7 +169,7 @@ public sealed class CommandEngine
     }
 }
 
-public sealed record CommandResult(bool Success, string Response)
+public sealed record CommandResult(bool Succeeded, string Response)
 {
     public static CommandResult Success(string response) => new(true, response);
     public static CommandResult Failure(string response) => new(false, response);
