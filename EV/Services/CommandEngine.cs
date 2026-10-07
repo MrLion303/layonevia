@@ -69,6 +69,15 @@ public sealed class CommandEngine
                         ? AiToolResult.Success("El texto fue escrito en la ventana activa.")
                         : AiToolResult.Failure("No pude escribir el texto en la ventana activa.");
 
+                case "find_file":
+                    return ExecuteAiFindFileTool(root);
+
+                case "open_file":
+                    return ExecuteAiOpenFileTool(root);
+
+                case "file_action":
+                    return ExecuteAiFileActionTool(root);
+
                 default:
                     return AiToolResult.Failure($"Herramienta desconocida: {toolName}.");
             }
@@ -154,6 +163,202 @@ public sealed class CommandEngine
         return result.Succeeded
             ? AiToolResult.Success(result.Response)
             : AiToolResult.Failure(result.Response);
+    }
+
+    private AiToolResult ExecuteAiFindFileTool(System.Text.Json.JsonElement root)
+    {
+        if (!root.TryGetProperty("file_name", out var fileNameElement) ||
+            string.IsNullOrWhiteSpace(fileNameElement.GetString()))
+            return AiToolResult.Failure("No se indicó el nombre del archivo.");
+
+        var fileName = fileNameElement.GetString()!;
+        var location = root.TryGetProperty("location", out var locationElement)
+            ? locationElement.GetString()
+            : null;
+        var folderName = root.TryGetProperty("folder", out var folderElement)
+            ? folderElement.GetString()
+            : null;
+
+        var searchRoot = ResolveAiLocation(location);
+        if (string.IsNullOrWhiteSpace(searchRoot) || !Directory.Exists(searchRoot))
+            return AiToolResult.Failure("No encontré la ubicación donde buscar.");
+
+        if (!string.IsNullOrWhiteSpace(folderName))
+        {
+            var folder = FindDirectory(searchRoot, folderName);
+            if (folder is null)
+                return AiToolResult.Failure($"No encontré la carpeta «{folderName}».");
+
+            searchRoot = folder;
+        }
+
+        var files = FindFiles(searchRoot, fileName);
+        if (files.Count == 0)
+            return AiToolResult.Failure($"No encontré «{fileName}» en esa ubicación.");
+
+        _context.SetResults(files);
+        var listed = string.Join(Environment.NewLine,
+            files.Take(10).Select((path, index) => $"{index + 1}. {path}"));
+
+        return AiToolResult.Success($"Encontré {files.Count} archivo(s):{Environment.NewLine}{listed}");
+    }
+
+    private AiToolResult ExecuteAiOpenFileTool(System.Text.Json.JsonElement root)
+    {
+        if (!root.TryGetProperty("file", out var fileElement) ||
+            string.IsNullOrWhiteSpace(fileElement.GetString()))
+            return AiToolResult.Failure("No se indicó qué archivo abrir.");
+
+        var reference = fileElement.GetString()!;
+        var path = ResolveAiFileSource(reference);
+
+        if (path is null)
+        {
+            var location = root.TryGetProperty("location", out var locationElement)
+                ? locationElement.GetString()
+                : null;
+            var searchRoot = ResolveAiLocation(location);
+
+            if (!string.IsNullOrWhiteSpace(searchRoot) && Directory.Exists(searchRoot))
+            {
+                var files = FindFiles(searchRoot, reference);
+                if (files.Count > 0)
+                {
+                    _context.SetResults(files);
+                    path = files[0];
+                }
+            }
+        }
+
+        if (path is null || !File.Exists(path))
+            return AiToolResult.Failure($"No encontré el archivo «{reference}».");
+
+        try
+        {
+            StartShell(path);
+            _context.SetOpenedFile(path);
+            _context.SetResults([path]);
+            return AiToolResult.Success($"Abrí «{Path.GetFileName(path)}».");
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo abrir un archivo mediante la IA");
+            return AiToolResult.Failure("No pude abrir ese archivo.");
+        }
+    }
+
+    private AiToolResult ExecuteAiFileActionTool(System.Text.Json.JsonElement root)
+    {
+        if (!root.TryGetProperty("action", out var actionElement) ||
+            string.IsNullOrWhiteSpace(actionElement.GetString()))
+            return AiToolResult.Failure("No se indicó qué operación hacer con el archivo.");
+
+        if (!root.TryGetProperty("source", out var sourceElement) ||
+            string.IsNullOrWhiteSpace(sourceElement.GetString()))
+            return AiToolResult.Failure("No se indicó el archivo de origen.");
+
+        var action = actionElement.GetString()!.ToLowerInvariant();
+        var source = ResolveAiFileSource(sourceElement.GetString()!);
+
+        if (source is null || !File.Exists(source))
+            return AiToolResult.Failure("No encontré el archivo indicado.");
+
+        FileActionType fileAction;
+        string? destination = null;
+        string? newName = null;
+
+        switch (action)
+        {
+            case "copy":
+                fileAction = FileActionType.Copy;
+                destination = ResolveAiLocationProperty(root, "destination");
+                if (destination is null || !Directory.Exists(destination))
+                    return AiToolResult.Failure("No encontré la carpeta de destino.");
+                break;
+
+            case "move":
+                fileAction = FileActionType.Move;
+                destination = ResolveAiLocationProperty(root, "destination");
+                if (destination is null || !Directory.Exists(destination))
+                    return AiToolResult.Failure("No encontré la carpeta de destino.");
+                break;
+
+            case "rename":
+                fileAction = FileActionType.Rename;
+                if (!root.TryGetProperty("new_name", out var nameElement) ||
+                    string.IsNullOrWhiteSpace(nameElement.GetString()))
+                    return AiToolResult.Failure("No se indicó el nuevo nombre.");
+                newName = Path.GetFileName(nameElement.GetString()!);
+                if (string.IsNullOrWhiteSpace(newName))
+                    return AiToolResult.Failure("El nuevo nombre no es válido.");
+                break;
+
+            case "delete":
+                fileAction = FileActionType.Delete;
+                break;
+
+            default:
+                return AiToolResult.Failure("No reconozco esa operación de archivo.");
+        }
+
+        var result = ExecuteFileAction(new FileActionCommand(
+            fileAction, source, destination, newName));
+
+        return result.Succeeded
+            ? AiToolResult.Success(result.Response)
+            : AiToolResult.Failure(result.Response);
+    }
+
+    private string? ResolveAiFileSource(string reference)
+    {
+        var normalized = Normalize(reference);
+
+        if (normalized is "last" or "ultimo" or "último" or "ese" or "ese archivo")
+            return _context.LastFile;
+
+        if (normalized is "first" or "primero" or "primer archivo")
+            return _context.LastResults.Count > 0 ? _context.LastResults[0] : _context.LastFile;
+
+        if (normalized is "second" or "segundo" or "segundo archivo")
+            return _context.LastResults.Count > 1 ? _context.LastResults[1] : null;
+
+        if (Path.IsPathFullyQualified(reference) && File.Exists(reference))
+            return reference;
+
+        if (File.Exists(reference))
+            return Path.GetFullPath(reference);
+
+        return null;
+    }
+
+    private static string? ResolveAiLocation(string? location)
+    {
+        if (string.IsNullOrWhiteSpace(location))
+            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        var normalized = Normalize(location);
+
+        var known = normalized switch
+        {
+            "escritorio" => Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+            "documentos" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "descargas" or "downloads" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
+            "musica" => Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
+            "imagenes" or "fotos" => Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+            "videos" => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
+            _ => null
+        };
+
+        return known ?? (Directory.Exists(location) ? Path.GetFullPath(location) : null);
+    }
+
+    private static string? ResolveAiLocationProperty(System.Text.Json.JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var element) ||
+            string.IsNullOrWhiteSpace(element.GetString()))
+            return null;
+
+        return ResolveAiLocation(element.GetString());
     }
 
     public async Task<CommandResult> ExecuteAsync(
