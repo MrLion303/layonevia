@@ -43,6 +43,22 @@ public sealed class CommandEngine
         if (TryGetSystemCommand(command, out var systemCommand))
             return ExecuteSystemCommand(systemCommand);
 
+        if (TryGetWebCommand(command, out var webTarget))
+        {
+            if (TryOpenWeb(webTarget))
+                return CommandResult.Success("Abriendo la búsqueda, señor.");
+
+            return CommandResult.Failure("No pude abrir la búsqueda.");
+        }
+
+        if (TryGetFolderCommand(command, out var folderTarget))
+        {
+            if (TryOpenFolder(folderTarget))
+                return CommandResult.Success("Abriendo la carpeta, señor.");
+
+            return CommandResult.Failure("No pude abrir esa ubicación.");
+        }
+
         if (TryGetTypeCommand(command, out var textToType))
         {
             if (TypeText(textToType))
@@ -282,6 +298,113 @@ public sealed class CommandEngine
         }
 
         return CommandResult.Failure("No pude ejecutar esa acción de Windows.");
+    }
+
+    private static bool TryGetWebCommand(string text, out string target)
+    {
+        target = string.Empty;
+        var normalized = Normalize(text);
+        var original = text.Trim();
+
+        foreach (var prefix in new[]
+        {
+            "busca en internet ",
+            "busca en google ",
+            "busca ",
+            "buscar en internet ",
+            "buscar en google ",
+            "buscar "
+        })
+        {
+            if (!normalized.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            target = original[prefix.Length..].Trim();
+            return target.Length > 0;
+        }
+
+        return false;
+    }
+
+    private static bool TryOpenWeb(string target)
+    {
+        try
+        {
+            var url = "https://www.google.com/search?q=" +
+                      Uri.EscapeDataString(target);
+
+            StartShell(url);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo abrir una búsqueda web");
+            return false;
+        }
+    }
+
+    private static bool TryGetFolderCommand(string text, out string target)
+    {
+        target = string.Empty;
+        var normalized = Normalize(text);
+        var original = text.Trim();
+
+        foreach (var prefix in new[]
+        {
+            "abre la carpeta ",
+            "abre carpeta ",
+            "abrir la carpeta ",
+            "abrir carpeta ",
+            "abre la ubicación ",
+            "abre ubicacion ",
+            "abrir la ubicación ",
+            "abrir ubicacion "
+        })
+        {
+            if (!normalized.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            target = original[prefix.Length..].Trim();
+            return target.Length > 0;
+        }
+
+        return false;
+    }
+
+    private static bool TryOpenFolder(string target)
+    {
+        try
+        {
+            if (Directory.Exists(target))
+            {
+                StartShell(target);
+                return true;
+            }
+
+            var knownFolder = Normalize(target) switch
+            {
+                "escritorio" => Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                "documentos" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "descargas" => Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Downloads"),
+                "musica" => Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
+                "imagenes" => Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+                "videos" => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
+                _ => null
+            };
+
+            if (string.IsNullOrWhiteSpace(knownFolder) || !Directory.Exists(knownFolder))
+                return false;
+
+            StartShell(knownFolder);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, $"No se pudo abrir la ubicación {target}");
+            return false;
+        }
     }
 
     private static bool TryGetTypeCommand(string text, out string textToType)
