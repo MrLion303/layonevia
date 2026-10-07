@@ -98,7 +98,33 @@ public partial class MainWindow : Window
     private MemoryPage GetMemory() => _memory ??= new MemoryPage();
     private ToolsPage GetTools() => _tools ??= new ToolsPage();
     private RoutinesPage GetRoutines() => _routines ??= new RoutinesPage();
-    private SettingsPage GetSettings() => _settings ??= new SettingsPage();
+    private SettingsPage GetSettings()
+    {
+        if (_settings is not null)
+            return _settings;
+
+        _settings = new SettingsPage();
+        _settings.SettingsChanged += Settings_SettingsChanged;
+        return _settings;
+    }
+
+    private void Settings_SettingsChanged(object? sender, EventArgs e)
+    {
+        var settings = _appSettings.Load();
+        _voiceRecognition.WakeWordEnabled = settings.WakeWordEnabled;
+
+        if (settings.WakeWordEnabled)
+        {
+            if (!_voiceRecognition.IsListening)
+                _voiceRecognition.Start();
+        }
+        else
+        {
+            _voiceRecognition.Stop();
+            VoiceStatusText.Text = "Escucha de activación desactivada";
+            VoiceStatusDot.Fill = Brushes.Orange;
+        }
+    }
 
     private void ShowPage(string title, object page)
     {
@@ -206,6 +232,9 @@ public partial class MainWindow : Window
             _audio.InputDeviceChanged -= Audio_InputDeviceChanged;
             _audio.Dispose();
         }
+
+        if (_settings is not null)
+            _settings.SettingsChanged -= Settings_SettingsChanged;
 
         base.OnClosed(e);
     }
