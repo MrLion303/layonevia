@@ -53,6 +53,22 @@ public sealed class CommandEngine
             }
         }
 
+        var contextFolder = _context.ResolveFolderReference(command);
+        if (contextFolder is not null)
+        {
+            try
+            {
+                StartShell(contextFolder);
+                _context.SetOpenedFolder(contextFolder);
+                return CommandResult.Success("Volviendo a esa carpeta, señor.");
+            }
+            catch (Exception ex)
+            {
+                App.LogException(ex, "No se pudo abrir la carpeta del contexto");
+                return CommandResult.Failure("No pude volver a esa carpeta.");
+            }
+        }
+
         if (TryGetNavigationCommand(command, out var navigationTarget))
         {
             return ExecuteNavigationCommand(navigationTarget);
