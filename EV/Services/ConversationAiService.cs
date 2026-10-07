@@ -93,6 +93,8 @@ public sealed class ConversationAiService
             alternativas. No inventes preferencias que no estén almacenadas.
             Las rutinas son acciones guardadas por el usuario. Solo ejecútalas cuando el usuario pida ejecutar
             una rutina concreta; nunca ejecutes una rutina solo porque su nombre aparezca en una conversación.
+            Solo crea una rutina cuando el usuario pida explícitamente guardar o aprender una secuencia.
+            Para eliminar una rutina, exige una petición explícita de eliminación.
             No guardes una memoria permanente solo porque el usuario comentó algo; solo el sistema de EV
             debe crear recuerdos cuando el usuario lo pida explícitamente.
             """;
@@ -289,6 +291,24 @@ public sealed class ConversationAiService
 
     private static object[] BuildTools() =>
     [
+        FunctionTool(
+            "create_routine",
+            "Crea una rutina persistente con pasos de herramientas. Solo úsala cuando el usuario haya pedido explícitamente crear, guardar o aprender una rutina.",
+            """
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"description":{"type":"string","description":"Descripción breve de lo que hace."},"steps":{"type":"array","description":"Pasos ordenados que componen la rutina.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"object","additionalProperties":true}},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name","description","steps"],"additionalProperties":false}
+            """),
+        FunctionTool(
+            "list_routines",
+            "Lista las rutinas persistentes disponibles del usuario.",
+            """
+            {"type":"object","properties":{},"additionalProperties":false}
+            """),
+        FunctionTool(
+            "delete_routine",
+            "Elimina una rutina persistente. Solo úsala cuando el usuario pida explícitamente eliminar una rutina.",
+            """
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."}},"required":["name"],"additionalProperties":false}
+            """),
         FunctionTool(
             "run_routine",
             "Ejecuta una rutina previamente guardada por el usuario. Úsala cuando el usuario pida explícitamente ejecutar una rutina por su nombre.",
