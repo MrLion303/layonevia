@@ -14,6 +14,8 @@ public sealed class MemorySyncService
 
     public GitHubAccount? GetAccount() => _accounts.Load();
 
+    public IReadOnlyList<MemoryItem> LoadLocalMemory() => _localStore.Load();
+
     public async Task<MemorySyncResult> SyncAsync(CancellationToken cancellationToken = default)
     {
         try
