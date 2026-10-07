@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Windows;
 
 namespace EV.Services;
 
@@ -32,65 +34,292 @@ public sealed class CommandEngine
             };
         }
 
-        if (StartsWith(command, "abre ", "abrir "))
+        if (TryGetApplicationCommand(command, out var appCommand))
+            return ExecuteApplicationCommand(appCommand);
+
+        if (TryGetWindowCommand(command, out var windowCommand))
+            return ExecuteWindowCommand(windowCommand);
+
+        if (TryGetSystemCommand(command, out var systemCommand))
+            return ExecuteSystemCommand(systemCommand);
+
+        if (TryGetTypeCommand(command, out var textToType))
         {
-            var target = command[(command.IndexOf(' ') + 1)..].Trim();
-            if (TryOpen(target))
-                return CommandResult.Success($"Abriendo {target}, señor.");
+            if (TypeText(textToType))
+                return CommandResult.Success("Listo, señor.");
 
-            return CommandResult.Failure($"No sé cómo abrir {target} todavía.");
-        }
-
-        if (StartsWith(command, "cierra ", "cerrar "))
-        {
-            var target = command[(command.IndexOf(' ') + 1)..].Trim();
-            if (TryClose(target))
-                return CommandResult.Success($"Cerrando {target}, señor.");
-
-            return CommandResult.Failure($"No encontré una aplicación abierta llamada {target}.");
+            return CommandResult.Failure("No pude escribir el texto en la ventana activa.");
         }
 
         if (command.Equals("qué puedes hacer", StringComparison.OrdinalIgnoreCase) ||
             command.Equals("que puedes hacer", StringComparison.OrdinalIgnoreCase))
         {
             return CommandResult.Success(
-                "Por ahora puedo guardar recuerdos sincronizados y abrir o cerrar algunas aplicaciones de Windows.");
+                "Puedo abrir, cerrar, cambiar, minimizar y maximizar aplicaciones, ir al escritorio, escribir texto y controlar algunas funciones de Windows.");
         }
 
         return CommandResult.Failure(
             $"Todavía no tengo una acción para «{command}». Podemos enseñarme esa orden después.");
     }
 
-    public bool TryGetMemoryRequest(string text, out string memory)
+    private static bool TryGetApplicationCommand(string text, out ApplicationCommand command)
     {
-        memory = "";
-        var normalized = text.Trim();
+        command = default;
+        var normalized = Normalize(text);
+
         var prefixes = new[]
         {
-            "recuerda que ",
-            "recuerda ",
-            "quiero que recuerdes que ",
-            "necesito que recuerdes que "
+            ("abre ", ApplicationAction.Open),
+            ("abrir ", ApplicationAction.Open),
+            ("inicia ", ApplicationAction.Open),
+            ("iniciar ", ApplicationAction.Open),
+            ("cierra ", ApplicationAction.Close),
+            ("cerrar ", ApplicationAction.Close),
+            ("cambiar a ", ApplicationAction.Switch),
+            ("cambia a ", ApplicationAction.Switch),
+            ("ve a ", ApplicationAction.Switch),
+            ("minimiza ", ApplicationAction.Minimize),
+            ("minimizar ", ApplicationAction.Minimize),
+            ("maximiza ", ApplicationAction.Maximize),
+            ("maximizar ", ApplicationAction.Maximize),
+            ("restaura ", ApplicationAction.Restore),
+            ("restaurar ", ApplicationAction.Restore)
         };
 
-        foreach (var prefix in prefixes)
+        foreach (var (prefix, action) in prefixes)
         {
-            if (!normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            if (!normalized.StartsWith(prefix, StringComparison.Ordinal))
                 continue;
 
-            memory = normalized[prefix.Length..].Trim();
-            return memory.Length > 0;
+            var target = text.Trim()[prefix.Length..].Trim();
+            if (target.Length == 0)
+                return false;
+
+            command = new ApplicationCommand(action, target);
+            return true;
+        }
+
+        if (normalized is "minimiza la ventana" or "minimizar la ventana")
+        {
+            command = new ApplicationCommand(ApplicationAction.Minimize, "");
+            return true;
+        }
+
+        if (normalized is "maximiza la ventana" or "maximizar la ventana")
+        {
+            command = new ApplicationCommand(ApplicationAction.Maximize, "");
+            return true;
+        }
+
+        if (normalized is "restaura la ventana" or "restaurar la ventana")
+        {
+            command = new ApplicationCommand(ApplicationAction.Restore, "");
+            return true;
         }
 
         return false;
     }
 
-    private static bool StartsWith(string text, params string[] prefixes) =>
-        prefixes.Any(x => text.StartsWith(x, StringComparison.OrdinalIgnoreCase));
+    private static CommandResult ExecuteApplicationCommand(ApplicationCommand command)
+    {
+        if (command.Action == ApplicationAction.Open)
+        {
+            if (TryOpen(command.Target))
+                return CommandResult.Success($"Abriendo {command.Target}, señor.");
+
+            return CommandResult.Failure($"No sé cómo abrir {command.Target} todavía.");
+        }
+
+        if (command.Action == ApplicationAction.Close)
+        {
+            if (TryClose(command.Target))
+                return CommandResult.Success($"Cerrando {command.Target}, señor.");
+
+            return CommandResult.Failure($"No encontré una aplicación abierta llamada {command.Target}.");
+        }
+
+        if (command.Action == ApplicationAction.Switch)
+        {
+            if (TrySwitch(command.Target))
+                return CommandResult.Success($"Cambiando a {command.Target}, señor.");
+
+            return CommandResult.Failure($"No encontré una ventana abierta de {command.Target}.");
+        }
+
+        if (command.Action == ApplicationAction.Minimize)
+        {
+            if (TryMinimize(command.Target))
+                return CommandResult.Success("Ventana minimizada, señor.");
+
+            return CommandResult.Failure($"No pude minimizar {DisplayTarget(command.Target)}.");
+        }
+
+        if (command.Action == ApplicationAction.Maximize)
+        {
+            if (TryMaximize(command.Target))
+                return CommandResult.Success("Ventana maximizada, señor.");
+
+            return CommandResult.Failure($"No pude maximizar {DisplayTarget(command.Target)}.");
+        }
+
+        if (TryRestore(command.Target))
+            return CommandResult.Success("Ventana restaurada, señor.");
+
+        return CommandResult.Failure($"No pude restaurar {DisplayTarget(command.Target)}.");
+    }
+
+    private static bool TryGetWindowCommand(string text, out WindowCommand command)
+    {
+        command = default;
+        var normalized = Normalize(text);
+
+        if (normalized is "ve al escritorio" or "ir al escritorio" or "muestra el escritorio" or "mostrar el escritorio")
+        {
+            command = new WindowCommand(WindowAction.Desktop);
+            return true;
+        }
+
+        if (normalized is "muestra las ventanas" or "mostrar las ventanas" or "cambia de ventana" or "cambiar de ventana")
+        {
+            command = new WindowCommand(WindowAction.TaskSwitcher);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static CommandResult ExecuteWindowCommand(WindowCommand command)
+    {
+        try
+        {
+            if (command.Action == WindowAction.Desktop)
+            {
+                SendKeys("%+{TAB}");
+                return CommandResult.Success("Listo, señor.");
+            }
+
+            SendKeys("%{TAB}");
+            return CommandResult.Success("Cambiando de ventana, señor.");
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo controlar las ventanas");
+            return CommandResult.Failure("No pude controlar las ventanas.");
+        }
+    }
+
+    private static bool TryGetSystemCommand(string text, out SystemCommand command)
+    {
+        command = default;
+        var normalized = Normalize(text);
+
+        command = normalized switch
+        {
+            "abre configuracion" or "abrir configuracion" or "abre configuraciones" or "abrir configuraciones"
+                => new SystemCommand(SystemAction.Settings),
+            "abre el explorador" or "abre explorador" or "abrir el explorador" or "abrir explorador"
+                => new SystemCommand(SystemAction.Explorer),
+            "abre la calculadora" or "abre calculadora" or "abrir la calculadora" or "abrir calculadora"
+                => new SystemCommand(SystemAction.Calculator),
+            "abre el bloc de notas" or "abre bloc de notas" or "abrir el bloc de notas" or "abrir bloc de notas"
+                => new SystemCommand(SystemAction.Notepad),
+            "bloquea el equipo" or "bloquear el equipo" or "bloquea la computadora" or "bloquear la computadora"
+                => new SystemCommand(SystemAction.Lock),
+            "silencia el volumen" or "silenciar el volumen" or "silencia el sonido" or "silenciar el sonido"
+                => new SystemCommand(SystemAction.Mute),
+            "sube el volumen" or "subir el volumen"
+                => new SystemCommand(SystemAction.VolumeUp),
+            "baja el volumen" or "bajar el volumen"
+                => new SystemCommand(SystemAction.VolumeDown),
+            _ => default
+        };
+
+        return command != default;
+    }
+
+    private static CommandResult ExecuteSystemCommand(SystemCommand command)
+    {
+        try
+        {
+            switch (command.Action)
+            {
+                case SystemAction.Settings:
+                    StartShell("ms-settings:");
+                    return CommandResult.Success("Abriendo configuración, señor.");
+
+                case SystemAction.Explorer:
+                    StartShell("explorer.exe");
+                    return CommandResult.Success("Abriendo el explorador, señor.");
+
+                case SystemAction.Calculator:
+                    StartShell("calc.exe");
+                    return CommandResult.Success("Abriendo la calculadora, señor.");
+
+                case SystemAction.Notepad:
+                    StartShell("notepad.exe");
+                    return CommandResult.Success("Abriendo el bloc de notas, señor.");
+
+                case SystemAction.Lock:
+                    LockWorkStation();
+                    return CommandResult.Success("Bloqueando el equipo, señor.");
+
+                case SystemAction.Mute:
+                    SendKeys("^{F10}");
+                    return CommandResult.Success("Volumen silenciado, señor.");
+
+                case SystemAction.VolumeUp:
+                    SendKeys("{F12}");
+                    return CommandResult.Success("Subiendo el volumen, señor.");
+
+                case SystemAction.VolumeDown:
+                    SendKeys("{F11}");
+                    return CommandResult.Success("Bajando el volumen, señor.");
+            }
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo ejecutar una acción del sistema");
+        }
+
+        return CommandResult.Failure("No pude ejecutar esa acción de Windows.");
+    }
+
+    private static bool TryGetTypeCommand(string text, out string textToType)
+    {
+        textToType = string.Empty;
+        var normalized = Normalize(text);
+
+        foreach (var prefix in new[] { "escribe ", "escribir ", "teclea ", "teclear ", "dicta ", "dictar " })
+        {
+            if (!normalized.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            var original = text.Trim();
+            textToType = original[prefix.Length..].Trim();
+            return textToType.Length > 0;
+        }
+
+        return false;
+    }
+
+    private static bool TypeText(string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+            SendKeys("^v");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo escribir texto");
+            return false;
+        }
+    }
 
     private static bool TryOpen(string target)
     {
-        var normalized = target.Trim().ToLowerInvariant();
+        var normalized = Normalize(target);
 
         var executable = normalized switch
         {
@@ -100,7 +329,7 @@ public sealed class CommandEngine
             "bloc de notas" or "notas" or "notepad" => "notepad.exe",
             "explorador" or "explorador de archivos" => "explorer.exe",
             "calculadora" => "calc.exe",
-            "configuración" or "configuracion" => "ms-settings:",
+            "configuracion" or "configuraciones" => "ms-settings:",
             _ => null
         };
 
@@ -126,26 +355,11 @@ public sealed class CommandEngine
 
     private static bool TryClose(string target)
     {
-        var normalized = target.Trim().ToLowerInvariant();
-
-        var processName = normalized switch
-        {
-            "discord" => "Discord",
-            "chrome" or "google chrome" => "chrome",
-            "edge" or "microsoft edge" => "msedge",
-            "bloc de notas" or "notas" or "notepad" => "notepad",
-            "explorador" or "explorador de archivos" => "explorer",
-            "calculadora" => "CalculatorApp",
-            _ => null
-        };
-
+        var processName = GetProcessName(target);
         if (processName is null)
             return false;
 
         var processes = Process.GetProcessesByName(processName);
-        if (processes.Length == 0)
-            return false;
-
         var closed = false;
 
         foreach (var process in processes)
@@ -167,6 +381,144 @@ public sealed class CommandEngine
 
         return closed;
     }
+
+    private static bool TrySwitch(string target) =>
+        FindAndActivateWindow(target);
+
+    private static bool TryMinimize(string target) =>
+        FindAndShowWindow(target, 6);
+
+    private static bool TryMaximize(string target) =>
+        FindAndShowWindow(target, 3);
+
+    private static bool TryRestore(string target) =>
+        FindAndShowWindow(target, 9);
+
+    private static bool FindAndActivateWindow(string target)
+    {
+        var normalizedTarget = Normalize(target);
+        var handle = FindWindowByTarget(normalizedTarget);
+        if (handle == IntPtr.Zero)
+            return false;
+
+        ShowWindow(handle, 9);
+        return SetForegroundWindow(handle);
+    }
+
+    private static bool FindAndShowWindow(string target, int command)
+    {
+        var normalizedTarget = Normalize(target);
+        var handle = string.IsNullOrWhiteSpace(normalizedTarget)
+            ? GetForegroundWindow()
+            : FindWindowByTarget(normalizedTarget);
+
+        return handle != IntPtr.Zero && ShowWindow(handle, command);
+    }
+
+    private static IntPtr FindWindowByTarget(string target)
+    {
+        IntPtr found = IntPtr.Zero;
+
+        EnumWindows((handle, _) =>
+        {
+            if (!IsWindowVisible(handle))
+                return true;
+
+            var title = GetWindowTitle(handle);
+            if (title.Length == 0)
+                return true;
+
+            var normalizedTitle = Normalize(title);
+
+            if (normalizedTitle.Contains(target, StringComparison.OrdinalIgnoreCase))
+            {
+                found = handle;
+                return false;
+            }
+
+            return true;
+        }, IntPtr.Zero);
+
+        return found;
+    }
+
+    private static string GetWindowTitle(IntPtr handle)
+    {
+        var length = GetWindowTextLength(handle);
+        if (length <= 0)
+            return string.Empty;
+
+        var builder = new System.Text.StringBuilder(length + 1);
+        GetWindowText(handle, builder, builder.Capacity);
+        return builder.ToString();
+    }
+
+    private static string? GetProcessName(string target)
+    {
+        return Normalize(target) switch
+        {
+            "discord" => "Discord",
+            "chrome" or "google chrome" => "chrome",
+            "edge" or "microsoft edge" => "msedge",
+            "bloc de notas" or "notas" or "notepad" => "notepad",
+            "explorador" or "explorador de archivos" => "explorer",
+            "calculadora" => "CalculatorApp",
+            _ => null
+        };
+    }
+
+    private static void StartShell(string fileName) =>
+        Process.Start(new ProcessStartInfo { FileName = fileName, UseShellExecute = true });
+
+    private static string DisplayTarget(string target) =>
+        string.IsNullOrWhiteSpace(target) ? "la ventana activa" : target;
+
+    private static string Normalize(string value)
+    {
+        return new string(value
+            .Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .ToArray())
+            .ToLowerInvariant()
+            .Trim();
+    }
+
+    private static void SendKeys(string keys) =>
+        System.Windows.Forms.SendKeys.SendWait(keys);
+
+    [DllImport("user32.dll")]
+    private static extern bool LockWorkStation();
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr extraData);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowTextLength(IntPtr handle);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr handle, System.Text.StringBuilder text, int maxLength);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr handle, int command);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    private delegate bool EnumWindowsProc(IntPtr handle, IntPtr extraData);
+
+    private readonly record struct ApplicationCommand(ApplicationAction Action, string Target);
+    private readonly record struct WindowCommand(WindowAction Action);
+    private readonly record struct SystemCommand(SystemAction Action);
+
+    private enum ApplicationAction { Open, Close, Switch, Minimize, Maximize, Restore }
+    private enum WindowAction { Desktop, TaskSwitcher }
+    private enum SystemAction { Settings, Explorer, Calculator, Notepad, Lock, Mute, VolumeUp, VolumeDown }
 }
 
 public sealed record CommandResult(bool Succeeded, string Response)
