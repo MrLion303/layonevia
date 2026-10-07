@@ -36,6 +36,9 @@ public sealed class CommandEngine
                 case "get_current_context":
                     return ExecuteAiContextTool();
 
+                case "get_system_state":
+                    return ExecuteAiSystemStateTool();
+
                 case "get_preferences":
                     return ExecuteAiPreferencesTool(root);
 
@@ -513,6 +516,45 @@ public sealed class CommandEngine
         finally
         {
             _runningRoutine = false;
+        }
+    }
+
+    private AiToolResult ExecuteAiSystemStateTool()
+    {
+        try
+        {
+            var foreground = GetForegroundWindow();
+            var title = foreground == IntPtr.Zero ? string.Empty : GetWindowTitle(foreground);
+            var processName = string.Empty;
+
+            if (foreground != IntPtr.Zero)
+            {
+                GetWindowThreadProcessId(foreground, out var processId);
+                if (processId != 0)
+                {
+                    try
+                    {
+                        using var process = Process.GetProcessById((int)processId);
+                        processName = process.ProcessName;
+                        _context.SetActiveWindow(title, processName);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
+            return AiToolResult.Success(
+                $"Ventana activa: {(string.IsNullOrWhiteSpace(title) ? "ninguna" : title)}. " +
+                $"Proceso: {(string.IsNullOrWhiteSpace(processName) ? "desconocido" : processName)}. " +
+                $"Aplicación recordada: {_context.ActiveApplication ?? "ninguna"}. " +
+                $"Carpeta actual: {_context.CurrentPath ?? "ninguna"}. " +
+                $"Último archivo: {_context.LastFile ?? "ninguno"}.");
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo obtener el estado de Windows");
+            return AiToolResult.Failure("No pude consultar el estado actual de Windows.");
         }
     }
 
@@ -2187,6 +2229,7 @@ public sealed class CommandEngine
                 UseShellExecute = true
             });
 
+            _context.SetActiveApplication(target);
             return true;
         }
         catch (Exception ex)
@@ -2375,6 +2418,9 @@ public sealed class CommandEngine
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr handle, out uint processId);
 
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr handle, int command);
