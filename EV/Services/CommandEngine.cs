@@ -2328,6 +2328,14 @@ public sealed class CommandEngine
                 => new SystemCommand(SystemAction.VolumeUp),
             "baja el volumen" or "bajar el volumen"
                 => new SystemCommand(SystemAction.VolumeDown),
+            "pausa la musica" or "pausar la musica" or "pausa la música" or "pausar la música" or "reanuda la musica" or "reanudar la musica"
+                => new SystemCommand(SystemAction.PlayPause),
+            "siguiente cancion" or "siguiente canción" or "pasa a la siguiente" or "siguiente"
+                => new SystemCommand(SystemAction.NextTrack),
+            "cancion anterior" or "canción anterior" or "anterior" or "regresa a la anterior"
+                => new SystemCommand(SystemAction.PreviousTrack),
+            "deten la musica" or "detén la música" or "detener la musica" or "detener la música" or "para la musica" or "para la música"
+                => new SystemCommand(SystemAction.StopMedia),
             _ => default
         };
 
