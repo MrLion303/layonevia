@@ -8,6 +8,16 @@ namespace EV.Services;
 
 public sealed class VoiceOutputService : IDisposable
 {
+    public static IReadOnlyList<string> GetAvailableVoices()
+    {
+        using var synthesizer = new SpeechSynthesizer();
+        return synthesizer.GetInstalledVoices()
+            .Where(v => v.Enabled)
+            .Select(v => v.VoiceInfo.Name)
+            .OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+    }
+
     private readonly AudioDeviceManager _devices = new();
     private readonly AudioSettingsStore _settingsStore = new();
     private readonly SemaphoreSlim _speechLock = new(1, 1);
@@ -25,6 +35,16 @@ public sealed class VoiceOutputService : IDisposable
             using var synthesizer = new SpeechSynthesizer();
             using var audio = new MemoryStream();
 
+            var voices = synthesizer.GetInstalledVoices().Where(v => v.Enabled).ToArray();
+            var preferredVoice = voices.FirstOrDefault(v =>
+                !string.IsNullOrWhiteSpace(settings.PreferredVoiceName) &&
+                string.Equals(v.VoiceInfo.Name, settings.PreferredVoiceName, StringComparison.OrdinalIgnoreCase));
+
+            if (preferredVoice is not null)
+                synthesizer.SelectVoice(preferredVoice.VoiceInfo.Name);
+
+            synthesizer.Rate = Math.Clamp(settings.VoiceRate, -10, 10);
+            synthesizer.Volume = Math.Clamp(settings.VoiceVolume, 0, 100);
             synthesizer.SetOutputToWaveStream(audio);
             synthesizer.Speak(text);
             audio.Position = 0;
