@@ -46,4 +46,7 @@ public sealed class AudioSettings
     public string? PreferredInputName { get; set; }
     public string? PreferredOutputId { get; set; }
     public string? PreferredOutputName { get; set; }
+    public string? PreferredVoiceName { get; set; }
+    public int VoiceRate { get; set; } = 0;
+    public int VoiceVolume { get; set; } = 100;
 }
