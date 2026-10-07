@@ -50,7 +50,7 @@ public sealed class ConversationAiService
 
         var input = new List<object>();
 
-        foreach (var turn in _history.TakeLast(20))
+        foreach (var turn in _history.TakeLast(30))
         {
             input.Add(new
             {
@@ -75,6 +75,11 @@ public sealed class ConversationAiService
             Tienes acceso a herramientas de EV. Úsalas cuando el usuario realmente quiera que EV haga algo en Windows.
             Nunca afirmes que una acción se realizó si la herramienta no confirmó que se realizó correctamente.
             Puedes encadenar varias herramientas si la petición lo requiere.
+            Después de una acción que cambie una ventana o abra una aplicación, usa el resultado de la herramienta como
+            evidencia. Si el resultado indica que no se encontró la ventana, no finjas que funcionó: consulta el estado
+            o las ventanas abiertas y busca una alternativa razonable.
+            En tareas de varios pasos, trata cada herramienta como un paso verificable. Si un paso falla, no continúes
+            ciegamente con los pasos dependientes; primero inspecciona el estado y decide si puedes recuperarte.
             Cuando una petición use palabras como "ese", "esa", "lo", "la", "ahí", "el anterior",
             "el primero", "mi archivo", "esa ventana" o dependa de algo que EV acaba de hacer,
             consulta la herramienta de contexto antes de adivinar el referente.
@@ -144,27 +149,21 @@ public sealed class ConversationAiService
                             result = AiToolResult.Failure("La herramienta produjo un error interno.");
                         }
 
+                        var toolOutput = result.Succeeded
+                            ? result.ToJson()
+                            : JsonSerializer.Serialize(new
+                            {
+                                succeeded = false,
+                                message = result.Message,
+                                task_rule = "Este paso falló. No continúes con pasos que dependan de él. Consulta el contexto o el estado de Windows y recupera la tarea solo si existe una alternativa segura."
+                            });
+
                         input.Add(new
                         {
                             type = "function_call_output",
                             call_id = call.CallId,
-                            output = result.ToJson()
+                            output = toolOutput
                         });
-
-                        if (!result.Succeeded)
-                        {
-                            input.Add(new
-                            {
-                                type = "function_call_output",
-                                call_id = call.CallId,
-                                output = JsonSerializer.Serialize(new
-                                {
-                                    succeeded = false,
-                                    message = result.Message,
-                                    task_rule = "Este paso falló. No continúes con pasos que dependan de él."
-                                })
-                            });
-                        }
                     }
 
                     continue;
@@ -177,7 +176,7 @@ public sealed class ConversationAiService
                 _history.Add(new ConversationTurn("user", userMessage));
                 _history.Add(new ConversationTurn("assistant", answer.Trim()));
 
-                while (_history.Count > 20)
+                while (_history.Count > 30)
                     _history.RemoveAt(0);
 
                 return AiResponse.Success(answer.Trim());
