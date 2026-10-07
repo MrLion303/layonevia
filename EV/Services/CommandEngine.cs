@@ -448,14 +448,17 @@ public sealed class CommandEngine
         if (TryGetMemoryRequest(command, out var memory))
         {
             var item = CreateMemoryItem(memory);
-            var result = await _memory.SaveMemoryOnlineAsync(item, cancellationToken);
+            var result = await _memory.UpsertMemoryOnlineAsync(
+                item,
+                existing => MemoriesReferToSameSubject(existing, item),
+                cancellationToken);
 
             return result.State switch
             {
                 MemorySyncState.Success => CommandResult.Success(
-                    "Listo, señor. Lo recordaré y lo sincronizaré con tu cuenta."),
+                    "Listo, señor. Lo recordaré y actualizaré ese recuerdo si ya tenía información sobre el mismo tema."),
                 MemorySyncState.Offline => CommandResult.Failure(
-                    "No puedo guardar recuerdos nuevos mientras estoy sin conexión."),
+                    "No puedo guardar recuerdos nuevos o actualizar recuerdos existentes mientras estoy sin conexión."),
                 MemorySyncState.NotConnected => CommandResult.Failure(
                     "Para guardar recuerdos entre computadoras, primero debes vincular tu cuenta de GitHub."),
                 _ => CommandResult.Failure(result.Message)
@@ -592,6 +595,36 @@ public sealed class CommandEngine
             return CommandResult.Success(conversation.Text);
 
         return CommandResult.Failure(conversation.Text);
+    }
+
+    private static bool MemoriesReferToSameSubject(MemoryItem existing, MemoryItem incoming)
+    {
+        if (!string.Equals(existing.Category, incoming.Category, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(existing.Subject) &&
+            !string.IsNullOrWhiteSpace(incoming.Subject))
+        {
+            return Normalize(existing.Subject) == Normalize(incoming.Subject);
+        }
+
+        var existingTokens = MemoryTokens(existing.Text);
+        var incomingTokens = MemoryTokens(incoming.Text);
+
+        if (existingTokens.Count == 0 || incomingTokens.Count == 0)
+            return false;
+
+        var common = existingTokens.Intersect(incomingTokens, StringComparer.OrdinalIgnoreCase).Count();
+        return common >= 2;
+    }
+
+    private static HashSet<string> MemoryTokens(string value)
+    {
+        return new HashSet<string>(
+            System.Text.RegularExpressions.Regex
+                .Split(Normalize(value), @"[^a-z0-9áéíóúüñ]+")
+                .Where(x => x.Length >= 4),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     private static MemoryItem CreateMemoryItem(string text)
