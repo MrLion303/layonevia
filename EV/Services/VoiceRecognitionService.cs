@@ -52,6 +52,13 @@ public sealed class VoiceRecognitionService : IDisposable
             _recognizer.SetWords(false);
 
             var deviceNumber = FindWaveInDeviceNumber();
+            if (deviceNumber < 0)
+            {
+                StatusChanged?.Invoke(this, "No hay un micrófono disponible.");
+                StopInternal();
+                return;
+            }
+
             _capture = new WaveInEvent
             {
                 DeviceNumber = deviceNumber,
@@ -119,20 +126,26 @@ public sealed class VoiceRecognitionService : IDisposable
     private void ProcessRecognizedText(string text)
     {
         var normalized = Normalize(text);
-        const string wakeWord = "oye ibi";
+        var tokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        var index = normalized.IndexOf(wakeWord, StringComparison.Ordinal);
-        if (index < 0)
+        for (var i = 0; i < tokens.Length - 1; i++)
+        {
+            if (!string.Equals(tokens[i], "oye", StringComparison.Ordinal) ||
+                !string.Equals(tokens[i + 1], "ibi", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var command = i + 2 < tokens.Length
+                ? string.Join(' ', tokens[(i + 2)..])
+                : string.Empty;
+
+            CommandRecognized?.Invoke(
+                this,
+                new VoiceCommandEventArgs(text, command, 1.0f));
+
             return;
-
-        var commandStart = index + wakeWord.Length;
-        var command = text.Length > commandStart
-            ? text[commandStart..].Trim(' ', ',', '.', ';', ':', '¡', '!', '?', '¿')
-            : string.Empty;
-
-        CommandRecognized?.Invoke(
-            this,
-            new VoiceCommandEventArgs(text, command, 1.0f));
+        }
     }
 
     private int FindWaveInDeviceNumber()
