@@ -30,6 +30,9 @@ public sealed class CommandEngine
 
             switch (toolName)
             {
+                case "get_current_context":
+                    return ExecuteAiContextTool();
+
                 case "open_application":
                     return ExecuteAiApplicationTool(root, ApplicationAction.Open);
 
@@ -90,6 +93,47 @@ public sealed class CommandEngine
         {
             App.LogException(ex, $"Error ejecutando herramienta de IA {toolName}");
             return AiToolResult.Failure("Windows no pudo completar esa acción.");
+        }
+    }
+
+    private AiToolResult ExecuteAiContextTool()
+    {
+        try
+        {
+            var foreground = GetForegroundWindow();
+            var activeWindow = foreground == IntPtr.Zero
+                ? null
+                : GetWindowTitle(foreground);
+
+            var lines = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(activeWindow))
+                lines.Add($"Ventana activa: {activeWindow}");
+
+            if (!string.IsNullOrWhiteSpace(_context.LastFile) && File.Exists(_context.LastFile))
+                lines.Add($"Último archivo: {_context.LastFile}");
+
+            if (!string.IsNullOrWhiteSpace(_context.LastFolder) && Directory.Exists(_context.LastFolder))
+                lines.Add($"Última carpeta: {_context.LastFolder}");
+
+            if (!string.IsNullOrWhiteSpace(_context.CurrentPath) && Directory.Exists(_context.CurrentPath))
+                lines.Add($"Ubicación actual: {_context.CurrentPath}");
+
+            if (_context.LastResults.Count > 0)
+            {
+                lines.Add("Resultados recientes:");
+                lines.AddRange(_context.LastResults.Take(10).Select((path, index) =>
+                    $"{index + 1}. {path}"));
+            }
+
+            return lines.Count == 0
+                ? AiToolResult.Success("No hay contexto adicional disponible en este momento.")
+                : AiToolResult.Success(string.Join(Environment.NewLine, lines));
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo obtener el contexto actual de EV");
+            return AiToolResult.Failure("No pude consultar el contexto actual de EV.");
         }
     }
 
