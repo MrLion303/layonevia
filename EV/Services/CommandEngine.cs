@@ -33,6 +33,9 @@ public sealed class CommandEngine
                 case "get_current_context":
                     return ExecuteAiContextTool();
 
+                case "get_preferences":
+                    return ExecuteAiPreferencesTool(root);
+
                 case "open_application":
                     return RecordToolResult($"Abrir aplicación «{GetToolString(root, "application")}»", ExecuteAiApplicationTool(root, ApplicationAction.Open));
 
@@ -110,6 +113,34 @@ public sealed class CommandEngine
                 _context.FailTask(result.Message);
         }
         return result;
+    }
+
+    private AiToolResult ExecuteAiPreferencesTool(JsonElement root)
+    {
+        var topic = GetToolString(root, "topic");
+        if (string.IsNullOrWhiteSpace(topic))
+            return AiToolResult.Failure("No se indicó el tema de la preferencia.");
+
+        var tokens = Tokenize(topic);
+        var matches = _memory.Load()
+            .Where(x => string.Equals(x.Category, "preference", StringComparison.OrdinalIgnoreCase))
+            .Where(x => Tokenize((x.Subject ?? "") + " " + x.Text).Any(tokens.Contains))
+            .OrderByDescending(x => x.UpdatedAt)
+            .Take(8)
+            .Select(x => $"[{x.Subject ?? "preferencia"}] {x.Text.Trim()}")
+            .ToArray();
+
+        return matches.Length == 0
+            ? AiToolResult.Success($"No tengo preferencias guardadas relacionadas con «{topic}».")
+            : AiToolResult.Success(string.Join(Environment.NewLine, matches));
+    }
+
+    private static HashSet<string> Tokenize(string value)
+    {
+        return new HashSet<string>(
+            Regex.Split(value.ToLowerInvariant(), @"[^\\p{L}\\p{N}]+")
+                .Where(x => x.Length >= 3),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     private AiToolResult ExecuteAiContextTool()
