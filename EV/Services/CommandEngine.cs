@@ -34,52 +34,55 @@ public sealed class CommandEngine
                     return ExecuteAiContextTool();
 
                 case "open_application":
-                    return ExecuteAiApplicationTool(root, ApplicationAction.Open);
+                    return RecordToolResult($"Abrir aplicación «{GetToolString(root, "application")}»", ExecuteAiApplicationTool(root, ApplicationAction.Open));
 
                 case "close_application":
-                    return ExecuteAiApplicationTool(root, ApplicationAction.Close);
+                    return RecordToolResult($"Cerrar aplicación «{GetToolString(root, "application")}»", ExecuteAiApplicationTool(root, ApplicationAction.Close));
 
                 case "control_window":
-                    return ExecuteAiWindowTool(root);
+                    return RecordToolResult($"Controlar ventana ({GetToolString(root, "action")})", ExecuteAiWindowTool(root));
 
                 case "system_action":
-                    return ExecuteAiSystemTool(root);
+                    return RecordToolResult($"Acción del sistema «{GetToolString(root, "action")}»", ExecuteAiSystemTool(root));
 
                 case "search_web":
                     if (!root.TryGetProperty("query", out var query) ||
                         string.IsNullOrWhiteSpace(query.GetString()))
                         return AiToolResult.Failure("No se indicó qué buscar.");
 
-                    return TryOpenWeb(query.GetString()!)
+                    var webResult = TryOpenWeb(query.GetString()!)
                         ? AiToolResult.Success($"Búsqueda abierta para «{query.GetString()}».")
                         : AiToolResult.Failure("No pude abrir la búsqueda.");
+                    return RecordToolResult($"Buscar en Internet «{query.GetString()}»", webResult);
 
                 case "open_folder":
                     if (!root.TryGetProperty("folder", out var folder) ||
                         string.IsNullOrWhiteSpace(folder.GetString()))
                         return AiToolResult.Failure("No se indicó la carpeta.");
 
-                    return TryOpenFolder(folder.GetString()!)
+                    var folderResult = TryOpenFolder(folder.GetString()!)
                         ? AiToolResult.Success($"Carpeta abierta: {folder.GetString()}.")
                         : AiToolResult.Failure($"No pude abrir la carpeta «{folder.GetString()}».");
+                    return RecordToolResult($"Abrir carpeta «{folder.GetString()}»", folderResult);
 
                 case "type_text":
                     if (!root.TryGetProperty("text", out var text) ||
                         string.IsNullOrEmpty(text.GetString()))
                         return AiToolResult.Failure("No se indicó texto para escribir.");
 
-                    return TypeText(text.GetString()!)
+                    var typeResult = TypeText(text.GetString()!)
                         ? AiToolResult.Success("El texto fue escrito en la ventana activa.")
                         : AiToolResult.Failure("No pude escribir el texto en la ventana activa.");
+                    return RecordToolResult("Escribir texto", typeResult);
 
                 case "find_file":
-                    return ExecuteAiFindFileTool(root);
+                    return RecordToolResult("Buscar archivo", ExecuteAiFindFileTool(root));
 
                 case "open_file":
-                    return ExecuteAiOpenFileTool(root);
+                    return RecordToolResult("Abrir archivo", ExecuteAiOpenFileTool(root));
 
                 case "file_action":
-                    return ExecuteAiFileActionTool(root);
+                    return RecordToolResult("Operación de archivo", ExecuteAiFileActionTool(root));
 
                 default:
                     return AiToolResult.Failure($"Herramienta desconocida: {toolName}.");
@@ -94,6 +97,12 @@ public sealed class CommandEngine
             App.LogException(ex, $"Error ejecutando herramienta de IA {toolName}");
             return AiToolResult.Failure("Windows no pudo completar esa acción.");
         }
+    }
+
+    private AiToolResult RecordToolResult(string action, AiToolResult result)
+    {
+        _context.RecordToolAction(action, result.Message);
+        return result;
     }
 
     private AiToolResult ExecuteAiContextTool()
@@ -119,6 +128,12 @@ public sealed class CommandEngine
             if (!string.IsNullOrWhiteSpace(_context.CurrentPath) && Directory.Exists(_context.CurrentPath))
                 lines.Add($"Ubicación actual: {_context.CurrentPath}");
 
+            if (!string.IsNullOrWhiteSpace(_context.LastToolAction))
+                lines.Add($"Última acción de EV: {_context.LastToolAction}");
+
+            if (!string.IsNullOrWhiteSpace(_context.LastToolResult))
+                lines.Add($"Resultado de la última acción: {_context.LastToolResult}");
+
             if (_context.LastResults.Count > 0)
             {
                 lines.Add("Resultados recientes:");
@@ -135,6 +150,11 @@ public sealed class CommandEngine
             App.LogException(ex, "No se pudo obtener el contexto actual de EV");
             return AiToolResult.Failure("No pude consultar el contexto actual de EV.");
         }
+    }
+
+    private static string GetToolString(System.Text.Json.JsonElement root, string property)
+    {
+        return root.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
     }
 
     private static AiToolResult ExecuteAiApplicationTool(
