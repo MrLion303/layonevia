@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using EV.Services;
-using NAudio.CoreAudioApi;
 
 namespace EV.Pages;
 
@@ -21,15 +20,12 @@ public partial class AudioPage : UserControl, IDisposable
         InputDevice.SelectionChanged += InputDevice_SelectionChanged;
         OutputDevice.SelectionChanged += OutputDevice_SelectionChanged;
         Loaded += AudioPage_Loaded;
-        Unloaded += AudioPage_Unloaded;
     }
 
     private void AudioPage_Loaded(object sender, RoutedEventArgs e)
     {
         if (!_disposed) LoadDevices();
     }
-
-    private void AudioPage_Unloaded(object sender, RoutedEventArgs e) => StopSpeech();
 
     private void LoadDevices()
     {
@@ -146,7 +142,7 @@ public partial class AudioPage : UserControl, IDisposable
         _voice.Dispose();
         InputDevice.SelectionChanged -= InputDevice_SelectionChanged;
         OutputDevice.SelectionChanged -= OutputDevice_SelectionChanged;
-        Loaded -= AudioPage_Loaded; Unloaded -= AudioPage_Unloaded;
+        Loaded -= AudioPage_Loaded;
     }
 }
 
