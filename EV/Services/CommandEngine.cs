@@ -146,8 +146,11 @@ public sealed class CommandEngine
                 "Puedo abrir, cerrar, cambiar, minimizar y maximizar aplicaciones, ir al escritorio, escribir texto y controlar algunas funciones de Windows.");
         }
 
-        return CommandResult.Failure(
-            $"Todavía no tengo una acción para «{command}». Podemos enseñarme esa orden después.");
+        var conversation = await new ConversationAiService().RespondAsync(command, cancellationToken);
+        if (conversation.Succeeded)
+            return CommandResult.Success(conversation.Text);
+
+        return CommandResult.Failure(conversation.Text);
     }
 
     private CommandResult? TryHandleRepeatCommand(string text)
