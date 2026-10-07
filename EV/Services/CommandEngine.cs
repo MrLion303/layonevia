@@ -102,6 +102,13 @@ public sealed class CommandEngine
     private AiToolResult RecordToolResult(string action, AiToolResult result)
     {
         _context.RecordToolAction(action, result.Message);
+        if (_context.CurrentTask is not null)
+        {
+            if (result.Succeeded)
+                _context.SetTaskStep(action, _context.CurrentTask.StepNumber + 1, _context.CurrentTask.TotalSteps);
+            else
+                _context.FailTask(result.Message);
+        }
         return result;
     }
 
@@ -590,7 +597,20 @@ public sealed class CommandEngine
                 "Puedo abrir, cerrar, cambiar, minimizar y maximizar aplicaciones, ir al escritorio, escribir texto y controlar algunas funciones de Windows.");
         }
 
+        var multiStepTask = LooksLikeMultiStepTask(command);
+        if (multiStepTask)
+            _context.StartTask(command);
+
         var conversation = await _conversation.RespondAsync(command, cancellationToken);
+
+        if (multiStepTask)
+        {
+            if (conversation.Succeeded)
+                _context.CompleteTask();
+            else
+                _context.FailTask(conversation.Text);
+        }
+
         if (conversation.Succeeded)
             return CommandResult.Success(conversation.Text);
 
@@ -666,17 +686,16 @@ public sealed class CommandEngine
         return null;
     }
 
-    private void UpdateTaskState(string action, string result, bool succeeded)
+    private static bool LooksLikeMultiStepTask(string text)
     {
-        var task = _context.CurrentTask;
-        if (task is null)
-            return;
+        var normalized = Normalize(text);
+        var connectors = new[]
+        {
+            " y ", " luego ", " después ", " despues ", " también ", " tambien ",
+            " antes de ", " después de ", " despues de ", " primero ", " finalmente "
+        };
 
-        var step = string.IsNullOrWhiteSpace(action) ? "Ejecutando la solicitud" : action;
-        var nextNumber = Math.Max(1, task.StepNumber + 1);
-        _context.SetTaskStep(step, nextNumber, Math.Max(nextNumber, task.TotalSteps));
-        if (!succeeded)
-            _context.FailTask(result);
+        return connectors.Any(normalized.Contains);
     }
 
     private CommandResult? TryHandleRepeatCommand(string text)
