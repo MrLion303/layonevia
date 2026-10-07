@@ -344,6 +344,12 @@ public sealed class ConversationAiService
             {"type":"object","properties":{"name":{"type":"string","description":"Nombre exacto o natural de la rutina que se desea ejecutar."}},"required":["name"],"additionalProperties":false}
             """),
         FunctionTool(
+            "get_system_state",
+            "Consulta el estado actual de Windows: ventana y proceso en primer plano, aplicación recordada y rutas recientes. Úsala cuando necesites saber qué está activo antes de actuar.",
+            """
+            {"type":"object","properties":{},"additionalProperties":false}
+            """),
+        FunctionTool(
             "get_preferences",
             "Obtiene preferencias permanentes del usuario relacionadas con un tema concreto.",
             """
