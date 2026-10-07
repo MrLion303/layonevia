@@ -1,0 +1,31 @@
+<UserControl x:Class="EV.Pages.HomePage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <StackPanel>
+   <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="28" Margin="0,0,0,18">
+    <StackPanel>
+     <TextBlock Text="Hola, señor." FontSize="30" FontWeight="SemiBold"/>
+     <TextBlock Text="EV está lista para recibir tus órdenes." FontSize="15" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0"/>
+     <TextBlock Text="Di «EV» seguido de una instrucción. Por ejemplo: «EV, abre Discord»." FontSize="14" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,18,0,0"/>
+    </StackPanel>
+   </Border>
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+    <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="22" Margin="0,0,9,0">
+     <StackPanel>
+      <TextBlock Text="Estado" FontSize="16" FontWeight="SemiBold"/>
+      <TextBlock Text="Escucha por voz" Foreground="{StaticResource MutedBrush}" Margin="0,12,0,0"/>
+      <TextBlock Text="En preparación para reconocimiento de voz" Foreground="{StaticResource AccentBrush}" Margin="0,5,0,0"/>
+     </StackPanel>
+    </Border>
+    <Border Grid.Column="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="22" Margin="9,0,0,0">
+     <StackPanel>
+      <TextBlock Text="Memoria" FontSize="16" FontWeight="SemiBold"/>
+      <TextBlock Text="Sincronización con GitHub preparada para una próxima etapa." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,12,0,0"/>
+     </StackPanel>
+    </Border>
+   </Grid>
+  </StackPanel>
+ </ScrollViewer>
+</UserControl>
