@@ -223,7 +223,7 @@ public sealed class VoiceRecognitionService : IDisposable
 
         return Regex.Replace(
             withoutAccents,
-            @"[^p{L}p{Nd}]+",
+            @"[^\p{L}\p{Nd}]+",
             " ").Trim();
     }
 
