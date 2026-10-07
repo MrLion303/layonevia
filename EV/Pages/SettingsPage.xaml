@@ -1,0 +1,16 @@
+<UserControl x:Class="EV.Pages.SettingsPage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <StackPanel>
+  <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="24">
+   <StackPanel>
+    <TextBlock Text="General" FontSize="20" FontWeight="SemiBold"/>
+    <CheckBox Content="Iniciar EV con Windows" Foreground="{StaticResource TextBrush}" Margin="0,18,0,8"/>
+    <CheckBox Content="Responder por voz" Foreground="{StaticResource TextBrush}" IsChecked="True" Margin="0,8"/>
+    <CheckBox Content="Escuchar la palabra de activación" Foreground="{StaticResource TextBrush}" IsChecked="True" Margin="0,8"/>
+    <TextBlock Text="Palabra de activación" FontWeight="SemiBold" Margin="0,22,0,6"/>
+    <TextBox Text="EV" MaxWidth="300"/>
+   </StackPanel>
+  </Border>
+ </StackPanel>
+</UserControl>
