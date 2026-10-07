@@ -122,7 +122,7 @@ public partial class AudioPage : UserControl, IDisposable
         {
             OutputStatus.Text = "Reproduciendo prueba de voz...";
             var deviceName = await _voice.SpeakAsync(
-                "Hola, soy EV. Esta es una prueba de mi salida de audio.");
+                "Hola, soy ibi. Esta es una prueba de mi salida de audio.");
 
             OutputStatus.Text = deviceName is null
                 ? "No hay una salida de audio disponible."
