@@ -1,6 +1,7 @@
 <UserControl x:Class="EV.Pages.HomePage"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
- xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:EV">
  <ScrollViewer VerticalScrollBarVisibility="Auto">
   <StackPanel>
    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="28" Margin="0,0,0,18">
@@ -9,6 +10,19 @@
      <TextBlock Text="EV está lista para recibir tus órdenes. Su nombre se escribe EV y se pronuncia «ibi»." FontSize="15" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
      <TextBlock Text="Di «ibi» seguido de una instrucción. Por ejemplo: «ibi, abre Discord»." FontSize="14" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,18,0,0"/>
     </StackPanel>
+   </Border>
+   <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="24" Margin="0,0,0,18">
+    <Grid>
+     <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <Grid Width="150" Height="150" HorizontalAlignment="Center" VerticalAlignment="Center">
+      <local:VoiceWaveVisualizer x:Name="SpeechWave" Width="150" Height="150"/>
+     </Grid>
+     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="20,0,0,0">
+      <TextBlock Text="Voz de EV" FontSize="20" FontWeight="SemiBold"/>
+      <TextBlock Text="La onda se mueve siguiendo el audio mientras EV está hablando." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+      <TextBlock x:Name="SpeechStatus" Text="En espera" Foreground="{StaticResource AccentBrush}" Margin="0,12,0,0"/>
+     </StackPanel>
+    </Grid>
    </Border>
    <Grid>
     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
@@ -24,8 +38,8 @@
       <TextBlock Text="Memoria" FontSize="16" FontWeight="SemiBold"/>
       <TextBlock Text="Memoria local disponible y sincronización con GitHub activa cuando la cuenta está vinculada." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,12,0,0"/>
      </StackPanel>
-   </Border>
-  </Grid>
- </StackPanel>
+    </Border>
+   </Grid>
+  </StackPanel>
  </ScrollViewer>
 </UserControl>

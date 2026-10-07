@@ -40,6 +40,7 @@ public partial class MainWindow : Window
         _voiceRecognition.StatusChanged += VoiceRecognition_StatusChanged;
         _voiceRecognition.AudioLevelChanged += VoiceRecognition_AudioLevelChanged;
         _voiceRecognition.CommandRecognized += VoiceRecognition_CommandRecognized;
+        _voiceOutput.AudioLevelChanged += VoiceOutput_AudioLevelChanged;
 
         _memorySyncTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
         _memorySyncTimer.Tick += MemorySyncTimer_Tick;
@@ -166,6 +167,17 @@ public partial class MainWindow : Window
         VoiceAudioText.Text = level > 0.03
             ? $"Micrófono: recibiendo audio · {level:P0}"
             : "Micrófono: escuchando...";
+    }
+
+    private void VoiceOutput_AudioLevelChanged(object? sender, double level)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => VoiceOutput_AudioLevelChanged(sender, level));
+            return;
+        }
+
+        GetHome().SetSpeechLevel(level);
     }
 
     private void VoiceRecognition_StatusChanged(object? sender, string status)
@@ -310,6 +322,7 @@ public partial class MainWindow : Window
         _allowClose = true;
         _voiceRecognition.StatusChanged -= VoiceRecognition_StatusChanged;
         _voiceRecognition.AudioLevelChanged -= VoiceRecognition_AudioLevelChanged;
+        _voiceOutput.AudioLevelChanged -= VoiceOutput_AudioLevelChanged;
         _memorySyncTimer.Stop();
         _memorySyncTimer.Tick -= MemorySyncTimer_Tick;
         _voiceRecognition.Dispose();
