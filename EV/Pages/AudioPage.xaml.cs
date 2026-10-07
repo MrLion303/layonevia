@@ -14,6 +14,8 @@ public partial class AudioPage : UserControl, IDisposable
     private bool _loading;
     private bool _disposed;
 
+    public event EventHandler? InputDeviceChanged;
+
     public AudioPage()
     {
         InitializeComponent();
