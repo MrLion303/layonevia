@@ -407,7 +407,7 @@ public sealed class ConversationAiService
             "system_action",
             "Controla funciones básicas de Windows.",
             """
-            {"type":"object","properties":{"action":{"type":"string","enum":["settings","explorer","calculator","notepad","lock","mute","volume_up","volume_down"]}},"required":["action"],"additionalProperties":false}
+            {"type":"object","properties":{"action":{"type":"string","enum":["settings","explorer","calculator","notepad","lock","mute","volume_up","volume_down","play_pause","next_track","previous_track","stop_media"]}},"required":["action"],"additionalProperties":false}
             """),
         FunctionTool(
             "search_web",
