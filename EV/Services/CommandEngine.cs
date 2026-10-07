@@ -160,6 +160,9 @@ public sealed class CommandEngine
         if (action is null)
             return CommandResult.Failure("No tengo una operación anterior que pueda repetir.");
 
+        if (action.Action == FileActionType.Delete)
+            return CommandResult.Failure("No repetiré un borrado automáticamente. Si quieres borrar otro archivo, dímelo explícitamente.");
+
         var command = new FileActionCommand(action.Action, action.SourcePath, action.DestinationPath, action.NewName);
         return ExecuteFileAction(command);
     }
