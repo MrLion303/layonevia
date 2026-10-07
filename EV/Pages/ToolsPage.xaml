@@ -1,0 +1,53 @@
+<UserControl x:Class="EV.Pages.ToolsPage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <StackPanel>
+   <TextBlock Text="Aplicaciones y archivos" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,6"/>
+   <TextBlock Text="Accesos rápidos para controlar Windows sin tener que hablarle a EV." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,18"/>
+
+   <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="22" Margin="0,0,0,14">
+    <StackPanel>
+     <TextBlock Text="Aplicaciones" FontSize="17" FontWeight="SemiBold"/>
+     <WrapPanel Margin="0,10,0,8">
+      <Button Content="Discord" Click="OpenApp_Click" Tag="Discord" Margin="0,4,8,4"/>
+      <Button Content="Chrome" Click="OpenApp_Click" Tag="Chrome" Margin="0,4,8,4"/>
+      <Button Content="Edge" Click="OpenApp_Click" Tag="Edge" Margin="0,4,8,4"/>
+      <Button Content="Bloc de notas" Click="OpenApp_Click" Tag="Bloc de notas" Margin="0,4,8,4"/>
+      <Button Content="Calculadora" Click="OpenApp_Click" Tag="Calculadora" Margin="0,4,8,4"/>
+     </WrapPanel>
+     <StackPanel Orientation="Horizontal">
+      <TextBox x:Name="ApplicationBox" Width="300" ToolTip="Nombre de la aplicación"/>
+      <Button Content="Abrir" Click="OpenCustomApp_Click" Margin="8,4,0,4"/>
+      <Button Content="Cerrar" Click="CloseCustomApp_Click" Margin="8,4,0,4"/>
+     </StackPanel>
+    </StackPanel>
+   </Border>
+
+   <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="22" Margin="0,0,0,14">
+    <StackPanel>
+     <TextBlock Text="Carpetas" FontSize="17" FontWeight="SemiBold"/>
+     <WrapPanel Margin="0,10,0,8">
+      <Button Content="Escritorio" Click="OpenFolder_Click" Tag="Escritorio" Margin="0,4,8,4"/>
+      <Button Content="Documentos" Click="OpenFolder_Click" Tag="Documentos" Margin="0,4,8,4"/>
+      <Button Content="Descargas" Click="OpenFolder_Click" Tag="Descargas" Margin="0,4,8,4"/>
+      <Button Content="Música" Click="OpenFolder_Click" Tag="Música" Margin="0,4,8,4"/>
+      <Button Content="Imágenes" Click="OpenFolder_Click" Tag="Imágenes" Margin="0,4,8,4"/>
+      <Button Content="Videos" Click="OpenFolder_Click" Tag="Videos" Margin="0,4,8,4"/>
+     </WrapPanel>
+     <StackPanel Orientation="Horizontal">
+      <TextBox x:Name="FolderBox" Width="420" ToolTip="Ruta o carpeta"/>
+      <Button Content="Abrir carpeta" Click="OpenCustomFolder_Click" Margin="8,4,0,4"/>
+     </StackPanel>
+    </StackPanel>
+   </Border>
+
+   <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="22">
+    <StackPanel>
+     <TextBlock Text="Resultado" FontSize="17" FontWeight="SemiBold"/>
+     <TextBlock x:Name="ResultText" Text="Listo." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+    </StackPanel>
+   </Border>
+  </StackPanel>
+ </ScrollViewer>
+</UserControl>
