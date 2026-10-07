@@ -38,6 +38,22 @@ public sealed class CommandEngine
             };
         }
 
+        var resultReference = _context.ResolveResultReference(command);
+        if (resultReference is not null)
+        {
+            try
+            {
+                StartShell(resultReference);
+                _context.SetOpenedFile(resultReference);
+                return CommandResult.Success($"Abriendo «{Path.GetFileName(resultReference)}», señor.");
+            }
+            catch (Exception ex)
+            {
+                App.LogException(ex, "No se pudo abrir el resultado seleccionado");
+                return CommandResult.Failure("No pude abrir ese resultado.");
+            }
+        }
+
         var contextFile = _context.ResolveFileReference(command);
         if (contextFile is not null)
         {
@@ -245,14 +261,22 @@ public sealed class CommandEngine
                 searchRoot = folder;
             }
 
-            var file = FindFile(searchRoot, command.FileName);
-            if (file is null)
+            var files = FindFiles(searchRoot, command.FileName);
+            if (files.Count == 0)
                 return CommandResult.Failure(
                     $"No encontré el archivo «{command.FileName}» en esa ubicación.");
 
+            _context.SetResults(files);
+
+            var file = files[0];
             StartShell(file);
             _context.SetOpenedFile(file);
-            return CommandResult.Success($"Abriendo «{Path.GetFileName(file)}», señor.");
+
+            if (files.Count == 1)
+                return CommandResult.Success($"Abriendo «{Path.GetFileName(file)}», señor.");
+
+            var listed = string.Join(", ", files.Take(5).Select((path, index) => $"{index + 1}: {Path.GetFileName(path)}"));
+            return CommandResult.Success($"Encontré {files.Count} archivos. El primero es «{Path.GetFileName(file)}». También encontré: {listed}");
         }
         catch (UnauthorizedAccessException)
         {
@@ -380,7 +404,48 @@ public sealed class CommandEngine
         return null;
     }
 
-    private static string? FindFile(string root, string requestedName)
+    private static List<string> FindFiles(string root, string requestedName)
+    {
+        var normalizedRequested = Normalize(requestedName);
+        var requestedBase = Normalize(Path.GetFileNameWithoutExtension(requestedName));
+        var hasExtension = !string.IsNullOrWhiteSpace(Path.GetExtension(requestedName));
+
+        try
+        {
+            var matches = new List<string>();
+
+            foreach (var file in Directory.EnumerateFiles(
+                root,
+                "*",
+                new EnumerationOptions
+                {
+                    RecurseSubdirectories = true,
+                    IgnoreInaccessible = true,
+                    ReturnSpecialDirectories = false
+                }))
+            {
+                var name = Path.GetFileName(file);
+                var normalizedName = Normalize(name);
+
+                if ((hasExtension && normalizedName == normalizedRequested) ||
+                    (!hasExtension && Normalize(Path.GetFileNameWithoutExtension(name)) == requestedBase))
+                    matches.Add(file);
+            }
+
+            return matches
+                .OrderBy(path => GetFileMatchPriority(path, hasExtension))
+                .ThenBy(path => path.Length)
+                .Take(10)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, $"No se pudo buscar el archivo {requestedName}");
+            return [];
+        }
+    }
+
+
     {
         var normalizedRequested = Normalize(requestedName);
         var requestedBase = Normalize(Path.GetFileNameWithoutExtension(requestedName));
