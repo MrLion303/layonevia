@@ -709,6 +709,35 @@ public sealed class CommandEngine
     private static bool ContainsAny(string text, params string[] values) =>
         values.Any(value => text.Contains(value, StringComparison.Ordinal));
 
+    private static bool TryGetMemoryRequest(string text, out string memory)
+    {
+        memory = string.Empty;
+        var normalized = Normalize(text);
+        var prefixes = new[]
+        {
+            "recuerda que ",
+            "recuerda ",
+            "acuérdate de ",
+            "acuerdate de ",
+            "no olvides que "
+        };
+
+        foreach (var prefix in prefixes)
+        {
+            if (!normalized.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            var value = text.Trim()[prefix.Length..].Trim();
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            memory = value;
+            return true;
+        }
+
+        return false;
+    }
+
     private static string GetLocationName(string path)
     {
         var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
