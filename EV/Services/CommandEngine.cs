@@ -2681,7 +2681,7 @@ public sealed class CommandEngine
 
     private enum ApplicationAction { Open, Close, Switch, Minimize, Maximize, Restore }
     private enum WindowAction { Desktop, TaskSwitcher }
-    private enum SystemAction { Settings, Explorer, Calculator, Notepad, Lock, Mute, VolumeUp, VolumeDown }
+    private enum SystemAction { Settings, Explorer, Calculator, Notepad, Lock, Mute, VolumeUp, VolumeDown, PlayPause, NextTrack, PreviousTrack, StopMedia }
 }
 
 public sealed record CommandResult(bool Succeeded, string Response)
