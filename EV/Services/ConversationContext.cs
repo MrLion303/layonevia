@@ -9,6 +9,7 @@ public sealed class ConversationContext
     public string? LastFile { get; private set; }
     public string? LastFolder { get; private set; }
     public PendingFileAction? PendingAction { get; private set; }
+    public FileActionRecord? LastAction { get; private set; }
 
     public IReadOnlyList<string> LastResults => _lastResults;
 
@@ -91,6 +92,19 @@ public sealed class ConversationContext
         return null;
     }
 
+    public void SetLastAction(FileActionType action, string sourcePath, string? destinationPath = null, string? newName = null)
+    {
+        LastAction = new FileActionRecord(action, sourcePath, destinationPath, newName);
+    }
+
+    public FileActionRecord? GetRepeatableAction()
+    {
+        if (LastAction is null || !File.Exists(LastAction.SourcePath))
+            return null;
+
+        return LastAction;
+    }
+
     public void SetPendingAction(PendingFileAction action) => PendingAction = action;
 
     public PendingFileAction? TakePendingAction()
@@ -106,6 +120,7 @@ public sealed class ConversationContext
         LastFile = null;
         LastFolder = null;
         PendingAction = null;
+        LastAction = null;
         _lastResults.Clear();
     }
 
@@ -129,3 +144,5 @@ public enum FileActionType
     Rename,
     Delete
 }
+
+public sealed record FileActionRecord(FileActionType Action, string SourcePath, string? DestinationPath, string? NewName);
