@@ -11,6 +11,7 @@ public sealed class CommandEngine
     private readonly MemorySyncService _memory = new();
     private readonly IntentInterpreter _intentInterpreter = new();
     private readonly ConversationContext _context = new();
+    private readonly ConversationAiService _conversation = new();
 
     public async Task<CommandResult> ExecuteAsync(
         string text,
@@ -146,7 +147,7 @@ public sealed class CommandEngine
                 "Puedo abrir, cerrar, cambiar, minimizar y maximizar aplicaciones, ir al escritorio, escribir texto y controlar algunas funciones de Windows.");
         }
 
-        var conversation = await new ConversationAiService().RespondAsync(command, cancellationToken);
+        var conversation = await _conversation.RespondAsync(command, cancellationToken);
         if (conversation.Succeeded)
             return CommandResult.Success(conversation.Text);
 
