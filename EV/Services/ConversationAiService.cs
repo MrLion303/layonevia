@@ -54,7 +54,7 @@ public sealed class ConversationAiService
 
         var input = new List<object>();
 
-        foreach (var turn in _history.TakeLast(12))
+        foreach (var turn in _history.TakeLast(20))
         {
             input.Add(new
             {
@@ -79,6 +79,10 @@ public sealed class ConversationAiService
             Tienes acceso a herramientas de EV. Úsalas cuando el usuario realmente quiera que EV haga algo en Windows.
             Nunca afirmes que una acción se realizó si la herramienta no confirmó que se realizó correctamente.
             Puedes encadenar varias herramientas si la petición lo requiere.
+            Cuando una petición use palabras como "ese", "esa", "lo", "la", "ahí", "el anterior",
+            "el primero", "mi archivo", "esa ventana" o dependa de algo que EV acaba de hacer,
+            consulta la herramienta de contexto antes de adivinar el referente.
+            Usa el contexto también para continuar una tarea de varios pasos.
             No uses una herramienta solo porque puedas hacerlo: para conversación normal, responde directamente.
             Las operaciones de archivos están disponibles cuando el usuario las solicita. Borrar archivos siempre pasa
             por el sistema de confirmación explícito de EV; nunca trates una solicitud de borrado como confirmada por
@@ -96,7 +100,7 @@ public sealed class ConversationAiService
 
         try
         {
-            for (var attempt = 0; attempt < 5; attempt++)
+            for (var attempt = 0; attempt < 8; attempt++)
             {
                 using var document = await SendResponseAsync(
                     settings,
@@ -148,7 +152,7 @@ public sealed class ConversationAiService
                 _history.Add(new ConversationTurn("user", userMessage));
                 _history.Add(new ConversationTurn("assistant", answer.Trim()));
 
-                while (_history.Count > 12)
+                while (_history.Count > 20)
                     _history.RemoveAt(0);
 
                 return AiResponse.Success(answer.Trim());
@@ -212,6 +216,12 @@ public sealed class ConversationAiService
 
     private static object[] BuildTools() =>
     [
+        FunctionTool(
+            "get_current_context",
+            "Obtiene el contexto actual de EV: ventana activa, último archivo, última carpeta y resultados recientes. Úsala para resolver referencias ambiguas o continuar una tarea.",
+            """
+            {"type":"object","properties":{},"additionalProperties":false}
+            """),
         FunctionTool(
             "open_application",
             "Abre una aplicación compatible de Windows. Usa el nombre natural de la aplicación.",
