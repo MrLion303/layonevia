@@ -13,6 +13,8 @@ public partial class MainWindow : Window
     private readonly CommandEngine _commandEngine = new();
     private readonly MemorySyncService _memorySync = new();
     private readonly DispatcherTimer _memorySyncTimer;
+    private readonly AppSettingsStore _appSettings = new();
+    private readonly WindowsStartupService _startup = new();
 
     private HomePage? _home;
     private AudioPage? _audio;
@@ -25,6 +27,13 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        var settings = _appSettings.Load();
+        _voiceRecognition.WakeWordEnabled = settings.WakeWordEnabled;
+        if (!settings.StartWithWindows && _startup.IsEnabled())
+        {
+            try { _startup.SetEnabled(false); } catch { }
+        }
+
         _voiceRecognition.StatusChanged += VoiceRecognition_StatusChanged;
         _voiceRecognition.AudioLevelChanged += VoiceRecognition_AudioLevelChanged;
         _voiceRecognition.CommandRecognized += VoiceRecognition_CommandRecognized;
@@ -34,7 +43,12 @@ public partial class MainWindow : Window
         _memorySyncTimer.Start();
 
         ShowPage("Inicio", GetHome());
-        _voiceRecognition.Start();
+        if (settings.WakeWordEnabled)
+            if (_appSettings.Load().WakeWordEnabled)
+                _voiceRecognition.Start();
+        else
+            VoiceStatusText.Text = "Escucha de activación desactivada";
+
         _ = SyncMemoryOnStartupAsync();
     }
 
@@ -149,7 +163,8 @@ public partial class MainWindow : Window
 
             _voiceRecognition.Stop();
             VoiceStatusText.Text = "Hablando...";
-            await _voiceOutput.SpeakAsync(result.Response);
+            if (_appSettings.Load().VoiceResponseEnabled)
+                await _voiceOutput.SpeakAsync(result.Response);
 
             if (!IsLoaded)
                 return;
