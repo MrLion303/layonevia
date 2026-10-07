@@ -757,6 +757,13 @@ public sealed class CommandEngine
         return AiToolResult.Failure("La acción del portapapeles debe ser leer o escribir.");
     }
 
+    private static string FormatBytes(long bytes)
+    {
+        return bytes < 0
+            ? "0 B"
+            : FormatBytes((ulong)bytes);
+    }
+
     private static string FormatBytes(ulong bytes)
     {
         if (bytes < 1024)
