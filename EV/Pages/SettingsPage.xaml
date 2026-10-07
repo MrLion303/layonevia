@@ -31,6 +31,8 @@
 
      <StackPanel Orientation="Horizontal">
       <Button Content="Guardar inteligencia" Click="SaveAi_Click" Padding="16,8"/>
+      <Button Content="Probar conexión" Click="TestAi_Click" Padding="16,8" Margin="8,4,0,4"/>
+      <Button Content="Borrar clave" Click="ClearAi_Click" Padding="16,8" Margin="8,4,0,4"/>
       <TextBlock x:Name="AiStatus" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="14,0,0,0"/>
      </StackPanel>
 
