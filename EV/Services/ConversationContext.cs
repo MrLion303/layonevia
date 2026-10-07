@@ -1,3 +1,4 @@
+using System.IO;
 namespace EV.Services;
 
 public sealed class ConversationContext
