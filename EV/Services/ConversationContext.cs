@@ -66,6 +66,8 @@ public sealed class ConversationContext
     public void StartTask(string goal)
     {
         CurrentTask = new TaskState(goal);
+        ClearRecentToolSequence();
+        LastContextUpdate = DateTimeOffset.UtcNow;
     }
 
     public void SetTaskStep(string step, int stepNumber, int totalSteps)
@@ -86,6 +88,7 @@ public sealed class ConversationContext
 
         CurrentTask.Status = TaskStatus.Completed;
         CurrentTask.CurrentStep = null;
+        LastContextUpdate = DateTimeOffset.UtcNow;
     }
 
     public void FailTask(string reason)
@@ -95,6 +98,7 @@ public sealed class ConversationContext
 
         CurrentTask.Status = TaskStatus.Failed;
         CurrentTask.LastError = reason;
+        LastContextUpdate = DateTimeOffset.UtcNow;
     }
 
     public string? LastToolAction { get; private set; }
@@ -216,6 +220,7 @@ public sealed class ConversationContext
     {
         LastToolAction = action;
         LastToolResult = result;
+        LastContextUpdate = DateTimeOffset.UtcNow;
         if (CurrentTask is not null && !string.IsNullOrWhiteSpace(result))
             CurrentTask.LastResult = result;
     }
