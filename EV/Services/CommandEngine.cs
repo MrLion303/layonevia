@@ -2665,6 +2665,23 @@ public sealed class CommandEngine
         uint flags,
         UIntPtr extraInfo);
 
+    [DllImport("kernel32.dll")]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx status);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MemoryStatusEx
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhys;
+        public ulong AvailPhys;
+        public ulong TotalPageFile;
+        public ulong AvailPageFile;
+        public ulong TotalVirtual;
+        public ulong AvailVirtual;
+        public ulong AvailExtendedVirtual;
+    }
+
     [DllImport("user32.dll")]
     private static extern bool LockWorkStation();
 
