@@ -94,6 +94,7 @@ public partial class AudioPage : UserControl, IDisposable
         s.PreferredInputId = selected.Id; s.PreferredInputName = selected.Id is null ? null : selected.Name;
         _settingsStore.Save(s);
         InputStatus.Text = selected.Id is null ? "EV elegirá automáticamente un micrófono disponible." : $"Micrófono preferido guardado: {selected.Name}";
+        InputDeviceChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OutputDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
