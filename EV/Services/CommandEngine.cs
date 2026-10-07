@@ -2682,6 +2682,20 @@ public sealed class CommandEngine
         public ulong AvailExtendedVirtual;
     }
 
+    [DllImport("kernel32.dll")]
+    private static extern bool GetSystemPowerStatus(ref SystemPowerStatus status);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SystemPowerStatus
+    {
+        public byte ACLineStatus;
+        public byte BatteryFlag;
+        public byte BatteryLifePercent;
+        public byte SystemStatusFlag;
+        public uint BatteryLifeTime;
+        public uint BatteryFullLifeTime;
+    }
+
     [DllImport("user32.dll")]
     private static extern bool LockWorkStation();
 
