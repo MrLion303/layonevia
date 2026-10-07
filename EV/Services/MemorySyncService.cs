@@ -178,6 +178,99 @@ public sealed class MemorySyncService
         _localStore.Save(memories);
     }
 
+    public async Task<(MemorySyncResult Result, int Removed)> ForgetMemoryOnlineAsync(
+        string query,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return (MemorySyncResult.Failed("No se indicó qué recuerdo eliminar."), 0);
+
+        try
+        {
+            var account = _accounts.Load();
+
+            if (account is null)
+                return (MemorySyncResult.NotConnected(
+                    "EV todavía no está conectado a GitHub."), 0);
+
+            if (account.AccessTokenExpiresAt is not null &&
+                account.AccessTokenExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(1))
+            {
+                var refreshed = await _auth.RefreshAsync(account, cancellationToken);
+
+                if (refreshed is null)
+                    return (MemorySyncResult.NotConnected(
+                        "La sesión de GitHub expiró. Vuelve a vincular la cuenta."), 0);
+
+                account = refreshed;
+                _accounts.Save(account);
+            }
+
+            if (!await _github.CanReachGitHubAsync(cancellationToken))
+                return (MemorySyncResult.Offline(
+                    "GitHub no está disponible. No se eliminó el recuerdo."), 0);
+
+            var local = _localStore.Load().ToList();
+            var remoteFile = await _github.DownloadMemoryAsync(
+                account.Repository,
+                account.AccessToken,
+                MemoryPath,
+                cancellationToken);
+
+            var remote = remoteFile is null
+                ? new List<MemoryItem>()
+                : Deserialize(remoteFile.Content);
+
+            var merged = Merge(local, remote);
+            var normalizedQuery = NormalizeMemoryText(query);
+            var removed = merged.RemoveAll(item =>
+                NormalizeMemoryText(item.Text).Equals(normalizedQuery, StringComparison.Ordinal) ||
+                NormalizeMemoryText(item.Text).Contains(normalizedQuery, StringComparison.Ordinal));
+
+            if (removed == 0)
+                return (MemorySyncResult.Success(merged.Count), 0);
+
+            var json = JsonSerializer.Serialize(
+                merged,
+                new JsonSerializerOptions { WriteIndented = true });
+
+            var saved = await _github.SaveMemoryAsync(
+                account.Repository,
+                account.AccessToken,
+                MemoryPath,
+                json,
+                remoteFile?.Sha,
+                cancellationToken);
+
+            if (!saved)
+                return (MemorySyncResult.Failed(
+                    "No se pudo actualizar la memoria en GitHub. El recuerdo sigue guardado."), 0);
+
+            _localStore.Save(merged);
+            return (MemorySyncResult.Success(merged.Count), removed);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "Error al olvidar un recuerdo");
+            return (MemorySyncResult.Failed(
+                "No se pudo eliminar el recuerdo."), 0);
+        }
+    }
+
+    private static string NormalizeMemoryText(string value)
+    {
+        return new string(value
+            .Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .ToArray())
+            .Trim()
+            .ToLowerInvariant();
+    }
+
     private static List<MemoryItem> Deserialize(string content)
     {
         try
