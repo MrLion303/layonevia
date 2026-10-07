@@ -150,7 +150,7 @@ public sealed class CommandEngine
                 .Select(step => new RoutineStep
                 {
                     ToolName = step.GetProperty("tool").GetString() ?? "",
-                    ArgumentsJson = step.GetProperty("arguments").GetRawText()
+                    ArgumentsJson = step.GetProperty("arguments").GetString() ?? "{}"
                 })
                 .ToList()
         };
