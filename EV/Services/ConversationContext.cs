@@ -4,6 +4,7 @@ namespace EV.Services;
 public sealed class ConversationContext
 {
     private readonly List<string> _lastResults = [];
+    private readonly List<ExecutedToolStep> _recentToolSequence = [];
 
     public string? CurrentPath { get; private set; }
     public string? LastFile { get; private set; }
@@ -11,6 +12,7 @@ public sealed class ConversationContext
     public PendingFileAction? PendingAction { get; private set; }
     public FileActionRecord? LastAction { get; private set; }
     public TaskState? CurrentTask { get; private set; }
+    public IReadOnlyList<ExecutedToolStep> RecentToolSequence => _recentToolSequence;
 
     public void StartTask(string goal)
     {
@@ -153,6 +155,30 @@ public sealed class ConversationContext
             CurrentTask.LastResult = result;
     }
 
+    public void RecordExecutedTool(string toolName, string argumentsJson, string action, string result)
+    {
+        if (string.IsNullOrWhiteSpace(toolName) || string.IsNullOrWhiteSpace(argumentsJson))
+            return;
+
+        if (_recentToolSequence.Count == 0 ||
+            (DateTimeOffset.UtcNow - _recentToolSequence[^1].ExecutedAt).TotalMinutes > 5)
+        {
+            _recentToolSequence.Clear();
+        }
+
+        _recentToolSequence.Add(new ExecutedToolStep(
+            toolName,
+            argumentsJson,
+            action,
+            result,
+            DateTimeOffset.UtcNow));
+
+        while (_recentToolSequence.Count > 30)
+            _recentToolSequence.RemoveAt(0);
+    }
+
+    public void ClearRecentToolSequence() => _recentToolSequence.Clear();
+
     public PendingFileAction? TakePendingAction()
     {
         var action = PendingAction;
@@ -171,6 +197,7 @@ public sealed class ConversationContext
         CurrentTask = null;
         LastToolResult = null;
         _lastResults.Clear();
+        _recentToolSequence.Clear();
     }
 
     private static string Normalize(string value)
@@ -215,3 +242,11 @@ public enum TaskStatus
     Completed,
     Failed
 }
+
+
+public sealed record ExecutedToolStep(
+    string ToolName,
+    string ArgumentsJson,
+    string Action,
+    string Result,
+    DateTimeOffset ExecutedAt);
