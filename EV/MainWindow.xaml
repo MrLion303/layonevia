@@ -1,6 +1,7 @@
 <Window x:Class="EV.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:EV"
         Title="EV" Width="980" Height="640" MinWidth="860" MinHeight="560"
         Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}"
         WindowStartupLocation="CenterScreen">
@@ -37,13 +38,23 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <DockPanel Grid.Row="0" Margin="0,0,0,24">
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Ellipse x:Name="VoiceStatusDot" Width="10" Height="10" Fill="{StaticResource AccentBrush}" Margin="0,0,8,0"/>
-                    <TextBlock x:Name="VoiceStatusText" Text="Iniciando voz..." Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+            <Grid Grid.Row="0" Margin="0,0,0,24">
+                <TextBlock x:Name="PageTitle" Text="Inicio" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center"/>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Grid Width="76" Height="76" Margin="0,0,16,0">
+                        <local:VoiceWaveVisualizer x:Name="VoiceWave" Width="76" Height="76"/>
+                    </Grid>
+
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="VoiceStatusDot" Width="10" Height="10" Fill="{StaticResource AccentBrush}" Margin="0,0,8,0"/>
+                            <TextBlock x:Name="VoiceStatusText" Text="Iniciando voz..." Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock x:Name="VoiceAudioText" Text="Micrófono: esperando audio" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="18,4,0,0"/>
+                    </StackPanel>
                 </StackPanel>
-                <TextBlock x:Name="PageTitle" Text="Inicio" FontSize="28" FontWeight="SemiBold"/>
-            </DockPanel>
+            </Grid>
 
             <ContentControl x:Name="PageContent" Grid.Row="1"/>
         </Grid>
