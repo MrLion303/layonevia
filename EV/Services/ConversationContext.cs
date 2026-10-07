@@ -99,7 +99,7 @@ public sealed class ConversationContext
 
     public FileActionRecord? GetRepeatableAction()
     {
-        if (LastAction is null || !File.Exists(LastAction.SourcePath))
+        if (LastAction is null || LastAction.Action != FileActionType.Copy || !File.Exists(LastAction.SourcePath))
             return null;
 
         return LastAction;
