@@ -9,6 +9,7 @@ public partial class MainWindow : Window
 {
     private readonly VoiceRecognitionService _voiceRecognition = new();
     private readonly VoiceOutputService _voiceOutput = new();
+    private readonly CommandEngine _commandEngine = new();
 
     private HomePage? _home;
     private AudioPage? _audio;
@@ -51,40 +52,47 @@ public partial class MainWindow : Window
 
     private void VoiceRecognition_StatusChanged(object? sender, string status)
     {
-        Dispatcher.Invoke(() =>
+        if (!Dispatcher.CheckAccess())
         {
-            VoiceStatusText.Text = status;
-            VoiceStatusDot.Fill = status.Contains("Escuchando", StringComparison.OrdinalIgnoreCase)
-                ? Brushes.LightGreen
-                : Brushes.Orange;
-        });
+            Dispatcher.BeginInvoke(() => VoiceRecognition_StatusChanged(sender, status));
+            return;
+        }
+
+        VoiceStatusText.Text = status;
+        VoiceStatusDot.Fill = status.Contains("Escuchando", StringComparison.OrdinalIgnoreCase)
+            ? Brushes.LightGreen
+            : Brushes.Orange;
     }
 
     private async void VoiceRecognition_CommandRecognized(object? sender, VoiceCommandEventArgs e)
     {
         try
         {
-            await Dispatcher.InvokeAsync(async () =>
+            if (!Dispatcher.CheckAccess())
             {
-                VoiceStatusText.Text = "Te escuché · procesando...";
-                VoiceStatusDot.Fill = Brushes.LightGreen;
+                await Dispatcher.InvokeAsync(() => VoiceRecognition_CommandRecognized(sender, e));
+                return;
+            }
 
-                if (string.IsNullOrWhiteSpace(e.Command))
-                {
-                    await _voiceOutput.SpeakAsync("Sí, señor.");
-                    return;
-                }
+            VoiceStatusText.Text = "Te escuché · procesando...";
+            VoiceStatusDot.Fill = Brushes.LightGreen;
 
-                App.LogException(
-                    new InvalidOperationException($"Comando de voz recibido: {e.Command}"),
-                    "Registro de comando de voz");
+            var result = await _commandEngine.ExecuteAsync(e.Command);
 
-                await _voiceOutput.SpeakAsync($"Entendido, señor. Dijiste: {e.Command}");
-            });
+            await _voiceOutput.SpeakAsync(result.Response);
+
+            VoiceStatusText.Text = _voiceRecognition.IsListening
+                ? "Escuchando «Oye ibi»"
+                : "Reconocimiento de voz detenido.";
+            VoiceStatusDot.Fill = _voiceRecognition.IsListening
+                ? Brushes.LightGreen
+                : Brushes.Orange;
         }
         catch (Exception ex)
         {
             App.LogException(ex, "Error al procesar un comando de voz");
+            VoiceStatusText.Text = "Error al procesar la orden.";
+            VoiceStatusDot.Fill = Brushes.Orange;
         }
     }
 
