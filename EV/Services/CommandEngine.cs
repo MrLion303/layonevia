@@ -398,6 +398,34 @@ public sealed class CommandEngine
             };
         }
 
+        if (TryGetForgetMemoryRequest(command, out var memoryToForget))
+        {
+            var result = await _memory.ForgetMemoryOnlineAsync(memoryToForget, cancellationToken);
+
+            if (result.Result.State == MemorySyncState.Success && result.Removed > 0)
+                return CommandResult.Success("Listo, señor. Ya olvidé ese recuerdo y eliminé la copia sincronizada.");
+
+            if (result.Result.State == MemorySyncState.Success)
+                return CommandResult.Failure("No encontré un recuerdo que coincida con eso.");
+
+            return CommandResult.Failure(result.Result.Message);
+        }
+
+        if (TryGetMemoryListRequest(command, out _))
+        {
+            var memories = new MemoryStore().Load()
+                .Where(x => !string.IsNullOrWhiteSpace(x.Text))
+                .OrderByDescending(x => x.UpdatedAt)
+                .Take(10)
+                .Select((x, i) => $"{i + 1}. {x.Text.Trim()}")
+                .ToArray();
+
+            return memories.Length == 0
+                ? CommandResult.Success("Ahora mismo no tengo recuerdos permanentes guardados, señor.")
+                : CommandResult.Success("Estos son mis recuerdos permanentes más recientes, señor:" +
+                    Environment.NewLine + string.Join(Environment.NewLine, memories));
+        }
+
         var resultReference = _context.ResolveResultReference(command);
         if (resultReference is not null)
         {
@@ -1087,6 +1115,45 @@ public sealed class CommandEngine
 
     private static bool ContainsAny(string text, params string[] values) =>
         values.Any(value => text.Contains(value, StringComparison.Ordinal));
+
+    private static bool TryGetForgetMemoryRequest(string text, out string memory)
+    {
+        memory = string.Empty;
+        var normalized = Normalize(text);
+
+        var prefixes = new[]
+        {
+            "olvida que ",
+            "olvida ",
+            "olvidate de ",
+            "olvídate de ",
+            "borra de tu memoria ",
+            "elimina de tu memoria "
+        };
+
+        foreach (var prefix in prefixes)
+        {
+            if (!normalized.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            memory = text.Trim()[prefix.Length..].Trim();
+            return memory.Length > 0;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetMemoryListRequest(string text, out string ignored)
+    {
+        ignored = string.Empty;
+        var normalized = Normalize(text);
+
+        return normalized is "que recuerdas" or "qué recuerdas" ||
+               normalized.Contains("que recuerdas de mi", StringComparison.Ordinal) ||
+               normalized.Contains("qué recuerdas de mi", StringComparison.Ordinal) ||
+               normalized.Contains("muestrame mis recuerdos", StringComparison.Ordinal) ||
+               normalized.Contains("muéstrame mis recuerdos", StringComparison.Ordinal);
+    }
 
     private static bool TryGetMemoryRequest(string text, out string memory)
     {
