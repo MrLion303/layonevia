@@ -1,3 +1,4 @@
+using System.IO;
 using System.Speech.Synthesis;
 using EV.Services;
 using NAudio.CoreAudioApi;
