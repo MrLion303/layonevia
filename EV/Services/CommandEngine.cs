@@ -38,6 +38,21 @@ public sealed class CommandEngine
             };
         }
 
+        var contextFile = _context.ResolveFileReference(command);
+        if (contextFile is not null)
+        {
+            try
+            {
+                StartShell(contextFile);
+                return CommandResult.Success($"Abriendo «{Path.GetFileName(contextFile)}», señor.");
+            }
+            catch (Exception ex)
+            {
+                App.LogException(ex, "No se pudo abrir el archivo del contexto");
+                return CommandResult.Failure("No pude abrir el archivo anterior.");
+            }
+        }
+
         if (TryGetFileCommand(command, out var fileCommand))
         {
             var result = ExecuteFileCommand(fileCommand);
