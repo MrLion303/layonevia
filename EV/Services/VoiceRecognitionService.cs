@@ -98,6 +98,15 @@ public sealed class VoiceRecognitionService : IDisposable
         StatusChanged?.Invoke(this, "Reconocimiento de voz detenido.");
     }
 
+    public void Restart()
+    {
+        if (_disposed)
+            return;
+
+        StopInternal();
+        Start();
+    }
+
     private void Capture_DataAvailable(object? sender, WaveInEventArgs e)
     {
         try
@@ -154,12 +163,7 @@ public sealed class VoiceRecognitionService : IDisposable
                 : string.Empty;
 
             if (partial)
-            {
-                // Si ya hay una orden completa en el resultado parcial, podemos ejecutarla
-                // sin esperar a que Vosk termine de cerrar la frase.
-                if (string.IsNullOrWhiteSpace(command))
-                    return;
-            }
+                return;
 
             CommandRecognized?.Invoke(
                 this,
