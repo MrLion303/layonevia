@@ -89,6 +89,8 @@ public sealed class ConversationAiService
             Los recuerdos pueden estar clasificados como preferencia, hecho, perfil o general; usa esa categoría
             para interpretar mejor su importancia. Las preferencias explícitas del usuario deben aplicarse de forma
             natural cuando sean relevantes. Si una preferencia contradice otra, prioriza la más reciente.
+            Cuando una tarea dependa de una preferencia concreta, consulta "get_preferences" antes de elegir entre
+            alternativas. No inventes preferencias que no estén almacenadas.
             No guardes una memoria permanente solo porque el usuario comentó algo; solo el sistema de EV
             debe crear recuerdos cuando el usuario lo pida explícitamente.
             """;
@@ -285,6 +287,12 @@ public sealed class ConversationAiService
 
     private static object[] BuildTools() =>
     [
+        FunctionTool(
+            "get_preferences",
+            "Obtiene preferencias permanentes del usuario relacionadas con un tema concreto.",
+            """
+            {"type":"object","properties":{"topic":{"type":"string","description":"Tema de la preferencia, por ejemplo audio, aplicaciones, archivos o forma de trabajo."}},"required":["topic"],"additionalProperties":false}
+            """),
         FunctionTool(
             "get_current_context",
             "Obtiene el contexto actual de EV: ventana activa, último archivo, última carpeta y resultados recientes. Úsala para resolver referencias ambiguas o continuar una tarea.",
