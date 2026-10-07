@@ -124,33 +124,26 @@ public partial class AudioPage : UserControl, IDisposable
     {
         try
         {
-            var s = _settingsStore.Load();
-            using var device = _devices.TryGetOutput(s.PreferredOutputId);
-            if (device is null) { OutputStatus.Text = "No hay una salida de audio disponible."; return; }
+            OutputStatus.Text = "Reproduciendo prueba de voz...";
+            var deviceName = await _voice.SpeakAsync(
+                "Hola, soy EV. Esta es una prueba de mi salida de audio.");
 
-            using var capture = new WasapiOut(device, AudioClientShareMode.Shared, true, 100);
-            using var wave = new SilenceProvider(new WaveFormat(44100, 16, 2));
-            capture.Init(wave);
-            capture.Play();
-            await Task.Delay(700);
-            capture.Stop();
-
-            OutputStatus.Text = $"Prueba reproducida por: {device.FriendlyName}";
+            OutputStatus.Text = deviceName is null
+                ? "No hay una salida de audio disponible."
+                : $"Prueba reproducida por: {deviceName}";
         }
-        catch (Exception ex) { App.LogException(ex, "Error al probar la salida seleccionada"); OutputStatus.Text = "No se pudo reproducir la prueba en esa salida."; }
-    }
-
-    private void StopSpeech()
-    {
-        try { _speaker.SpeakAsyncCancelAll(); } catch { }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "Error al probar la salida de voz");
+            OutputStatus.Text = "No se pudo reproducir la prueba de voz.";
+        }
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        StopSpeech();
-        try { _speaker.Dispose(); } catch { }
+        _voice.Dispose();
         InputDevice.SelectionChanged -= InputDevice_SelectionChanged;
         OutputDevice.SelectionChanged -= OutputDevice_SelectionChanged;
         Loaded -= AudioPage_Loaded; Unloaded -= AudioPage_Unloaded;
