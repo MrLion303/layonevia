@@ -14,49 +14,80 @@ public sealed class MemorySyncService
 
     public async Task<MemorySyncResult> SyncAsync(CancellationToken cancellationToken = default)
     {
-        var account = _accounts.Load();
-
-        if (account is null)
-            return MemorySyncResult.NotConnected("EV todavía no está conectado a GitHub.");
-
-        if (account.AccessTokenExpiresAt is not null &&
-            account.AccessTokenExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(1))
+        try
         {
-            var refreshed = await _auth.RefreshAsync(account, cancellationToken);
+            var account = _accounts.Load();
 
-            if (refreshed is null)
+            if (account is null)
+                return MemorySyncResult.NotConnected("EV todavía no está conectado a GitHub.");
+
+            if (account.AccessTokenExpiresAt is not null &&
+                account.AccessTokenExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(1))
             {
-                _accounts.Clear();
-                return MemorySyncResult.NotConnected("La sesión de GitHub expiró. Vuelve a vincular la cuenta.");
+                var refreshed = await _auth.RefreshAsync(account, cancellationToken);
+
+                if (refreshed is null)
+                {
+                    _accounts.Clear();
+                    return MemorySyncResult.NotConnected(
+                        "La sesión de GitHub expiró. Vuelve a vincular la cuenta.");
+                }
+
+                account = refreshed;
+                _accounts.Save(account);
             }
 
-            account = refreshed;
-            _accounts.Save(account);
+            if (!await _github.CanReachGitHubAsync(cancellationToken))
+                return MemorySyncResult.Offline(
+                    "GitHub no está disponible. Se conserva la última memoria sincronizada.");
+
+            var local = _localStore.Load().ToList();
+            var remoteFile = await _github.DownloadMemoryAsync(
+                account.Repository,
+                account.AccessToken,
+                MemoryPath,
+                cancellationToken);
+
+            var remote = remoteFile is null
+                ? new List<MemoryItem>()
+                : Deserialize(remoteFile.Content);
+
+            var merged = Merge(local, remote);
+            var json = JsonSerializer.Serialize(
+                merged,
+                new JsonSerializerOptions { WriteIndented = true });
+
+            var saved = await _github.SaveMemoryAsync(
+                account.Repository,
+                account.AccessToken,
+                MemoryPath,
+                json,
+                remoteFile?.Sha,
+                cancellationToken);
+
+            if (!saved)
+                return MemorySyncResult.Failed(
+                    "No se pudo actualizar la memoria en GitHub. No se modificó la copia local.");
+
+            _localStore.Save(merged);
+            return MemorySyncResult.Success(merged.Count);
         }
-
-        if (!await _github.CanReachGitHubAsync(cancellationToken))
-            return MemorySyncResult.Offline("GitHub no está disponible. Se conserva la última memoria sincronizada.");
-
-        var local = _localStore.Load().ToList();
-        var remoteFile = await _github.DownloadMemoryAsync(account.Repository, account.AccessToken, MemoryPath, cancellationToken);
-        var remote = remoteFile is null ? new List<MemoryItem>() : Deserialize(remoteFile.Content);
-        var merged = Merge(local, remote);
-
-        var json = JsonSerializer.Serialize(merged, new JsonSerializerOptions { WriteIndented = true });
-
-        var saved = await _github.SaveMemoryAsync(
-            account.Repository,
-            account.AccessToken,
-            MemoryPath,
-            json,
-            remoteFile?.Sha,
-            cancellationToken);
-
-        if (!saved)
-            return MemorySyncResult.Failed("No se pudo actualizar la memoria en GitHub.");
-
-        _localStore.Save(merged);
-        return MemorySyncResult.Success(merged.Count);
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            App.LogException(ex, "Error HTTP al sincronizar la memoria");
+            return MemorySyncResult.Failed(
+                "GitHub rechazó la sincronización. La memoria local no fue modificada.");
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "Error inesperado al sincronizar la memoria");
+            return MemorySyncResult.Failed(
+                "La sincronización falló. La memoria local no fue modificada.");
+        }
     }
 
     public void SaveLocal(MemoryItem memory)
@@ -69,11 +100,20 @@ public sealed class MemorySyncService
 
     private static List<MemoryItem> Deserialize(string content)
     {
-        try { return JsonSerializer.Deserialize<List<MemoryItem>>(content) ?? []; }
-        catch { return []; }
+        try
+        {
+            return JsonSerializer.Deserialize<List<MemoryItem>>(content) ?? [];
+        }
+        catch (JsonException ex)
+        {
+            App.LogException(ex, "La memoria remota contiene JSON inválido");
+            return [];
+        }
     }
 
-    private static List<MemoryItem> Merge(IEnumerable<MemoryItem> local, IEnumerable<MemoryItem> remote)
+    private static List<MemoryItem> Merge(
+        IEnumerable<MemoryItem> local,
+        IEnumerable<MemoryItem> remote)
     {
         var result = new Dictionary<string, MemoryItem>(StringComparer.OrdinalIgnoreCase);
 
@@ -82,8 +122,11 @@ public sealed class MemorySyncService
             if (string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.Text))
                 continue;
 
-            if (!result.TryGetValue(item.Id, out var existing) || item.UpdatedAt > existing.UpdatedAt)
+            if (!result.TryGetValue(item.Id, out var existing) ||
+                item.UpdatedAt > existing.UpdatedAt)
+            {
                 result[item.Id] = item;
+            }
         }
 
         return result.Values.OrderBy(x => x.CreatedAt).ToList();
@@ -92,10 +135,20 @@ public sealed class MemorySyncService
 
 public enum MemorySyncState { Success, Offline, NotConnected, Failed }
 
-public sealed record MemorySyncResult(MemorySyncState State, string Message, int MemoryCount = 0)
+public sealed record MemorySyncResult(
+    MemorySyncState State,
+    string Message,
+    int MemoryCount = 0)
 {
-    public static MemorySyncResult Success(int count) => new(MemorySyncState.Success, "Memoria sincronizada correctamente.", count);
-    public static MemorySyncResult Offline(string message) => new(MemorySyncState.Offline, message);
-    public static MemorySyncResult NotConnected(string message) => new(MemorySyncState.NotConnected, message);
-    public static MemorySyncResult Failed(string message) => new(MemorySyncState.Failed, message);
+    public static MemorySyncResult Success(int count) =>
+        new(MemorySyncState.Success, "Memoria sincronizada correctamente.", count);
+
+    public static MemorySyncResult Offline(string message) =>
+        new(MemorySyncState.Offline, message);
+
+    public static MemorySyncResult NotConnected(string message) =>
+        new(MemorySyncState.NotConnected, message);
+
+    public static MemorySyncResult Failed(string message) =>
+        new(MemorySyncState.Failed, message);
 }
