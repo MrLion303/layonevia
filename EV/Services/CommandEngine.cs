@@ -2229,7 +2229,6 @@ public sealed class CommandEngine
                 UseShellExecute = true
             });
 
-            _context.SetActiveApplication(target);
             return true;
         }
         catch (Exception ex)
