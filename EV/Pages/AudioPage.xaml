@@ -15,6 +15,17 @@
      <ComboBox x:Name="OutputDevice" Foreground="Black" Margin="0,8,0,14"/>
      <Button Content="Probar audio" Click="TestOutput_Click" HorizontalAlignment="Left"/>
      <TextBlock x:Name="OutputStatus" Text="Sin prueba realizada." Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
+     <TextBlock Text="Voz de EV" FontWeight="SemiBold" Margin="0,24,0,0"/>
+     <TextBlock Text="EV puede utilizar cualquier voz SAPI5 instalada en Windows, incluidas voces de terceros." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,6,0,8"/>
+     <ComboBox x:Name="VoiceSelection" Foreground="Black" Margin="0,0,0,12"/>
+     <StackPanel Orientation="Horizontal">
+      <TextBlock Text="Velocidad" VerticalAlignment="Center" Margin="0,0,10,0"/>
+      <Slider x:Name="VoiceRate" Minimum="-10" Maximum="10" Value="0" Width="150" Margin="0,0,16,0"/>
+      <TextBlock Text="Volumen" VerticalAlignment="Center" Margin="0,0,10,0"/>
+      <Slider x:Name="VoiceVolume" Minimum="0" Maximum="100" Value="100" Width="150"/>
+     </StackPanel>
+     <Button Content="Probar voz" Click="TestVoice_Click" HorizontalAlignment="Left" Margin="0,14,0,0"/>
+     <TextBlock x:Name="VoiceStatus" Text="Sin prueba realizada." Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
     </StackPanel>
    </Border>
   </StackPanel>
