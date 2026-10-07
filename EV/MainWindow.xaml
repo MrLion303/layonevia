@@ -27,6 +27,8 @@
                     <Button Content="Inicio" Click="Home_Click"/>
                     <Button Content="Audio" Click="Audio_Click"/>
                     <Button Content="Memoria" Click="Memory_Click"/>
+                    <Button Content="Aplicaciones y archivos" Click="Tools_Click"/>
+                    <Button Content="Rutinas" Click="Routines_Click"/>
                     <Button Content="Configuración" Click="Settings_Click"/>
                 </StackPanel>
             </DockPanel>
