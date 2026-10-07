@@ -526,30 +526,30 @@ public sealed class CommandEngine
             var foreground = GetForegroundWindow();
             var title = foreground == IntPtr.Zero ? string.Empty : GetWindowTitle(foreground);
             var processName = string.Empty;
+            var processId = 0u;
 
             if (foreground != IntPtr.Zero)
             {
-                GetWindowThreadProcessId(foreground, out var processId);
+                GetWindowThreadProcessId(foreground, out processId);
+
                 if (processId != 0)
                 {
                     try
                     {
                         using var process = Process.GetProcessById((int)processId);
                         processName = process.ProcessName;
-                        _context.SetActiveWindow(title, processName);
                     }
                     catch
                     {
                     }
                 }
+
+                _context.SetActiveWindow(title, processName);
             }
 
-            return AiToolResult.Success(
-                $"Ventana activa: {(string.IsNullOrWhiteSpace(title) ? "ninguna" : title)}. " +
-                $"Proceso: {(string.IsNullOrWhiteSpace(processName) ? "desconocido" : processName)}. " +
-                $"Aplicación recordada: {_context.ActiveApplication ?? "ninguna"}. " +
-                $"Carpeta actual: {_context.CurrentPath ?? "ninguna"}. " +
-                $"Último archivo: {_context.LastFile ?? "ninguno"}.");
+            return AiToolResult.Success(_context.BuildSummary() +
+                Environment.NewLine +
+                $"PID activo: {processId}.");
         }
         catch (Exception ex)
         {
@@ -596,9 +596,10 @@ public sealed class CommandEngine
                 : GetWindowTitle(foreground);
 
             var lines = new List<string>();
+            lines.Add(_context.BuildSummary());
 
             if (!string.IsNullOrWhiteSpace(activeWindow))
-                lines.Add($"Ventana activa: {activeWindow}");
+                lines.Add($"Ventana detectada ahora: {activeWindow}");
 
             if (!string.IsNullOrWhiteSpace(_context.LastFile) && File.Exists(_context.LastFile))
                 lines.Add($"Último archivo: {_context.LastFile}");
