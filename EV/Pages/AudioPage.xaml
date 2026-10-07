@@ -8,11 +8,11 @@
      <TextBlock Text="Dispositivos de audio" FontSize="20" FontWeight="SemiBold"/>
      <TextBlock Text="EV recordará tus dispositivos preferidos y podrá cambiar temporalmente a otro si desaparecen." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,7,0,20"/>
      <TextBlock Text="Micrófono" FontWeight="SemiBold"/>
-     <ComboBox x:Name="InputDevice" Margin="0,8,0,14"/>
+     <ComboBox x:Name="InputDevice" Foreground="Black" Margin="0,8,0,14"/>
      <Button Content="Probar micrófono" Click="TestInput_Click" HorizontalAlignment="Left"/>
      <TextBlock x:Name="InputStatus" Text="Sin prueba realizada." Foreground="{StaticResource MutedBrush}" Margin="0,4,0,22"/>
      <TextBlock Text="Salida de EV" FontWeight="SemiBold"/>
-     <ComboBox x:Name="OutputDevice" Margin="0,8,0,14"/>
+     <ComboBox x:Name="OutputDevice" Foreground="Black" Margin="0,8,0,14"/>
      <Button Content="Probar audio" Click="TestOutput_Click" HorizontalAlignment="Left"/>
      <TextBlock x:Name="OutputStatus" Text="Sin prueba realizada." Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
     </StackPanel>
