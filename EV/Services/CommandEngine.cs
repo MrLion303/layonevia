@@ -327,6 +327,7 @@ public sealed class CommandEngine
                     return CommandResult.Failure($"Ya existe un archivo llamado «{command.NewName}».");
 
                 File.Move(command.SourcePath, destination);
+                _context.SetLastAction(FileActionType.Rename, destination, null, command.NewName);
                 _context.SetOpenedFile(destination);
                 _context.SetResults([destination]);
 
@@ -349,6 +350,11 @@ public sealed class CommandEngine
                 File.Move(command.SourcePath, destinationFile);
             else
                 File.Copy(command.SourcePath, destinationFile);
+
+            if (command.Action == FileActionType.Copy)
+                _context.SetLastAction(FileActionType.Copy, command.SourcePath, command.DestinationPath, null);
+            else
+                _context.SetLastAction(FileActionType.Move, destinationFile, command.DestinationPath, null);
 
             _context.SetOpenedFile(destinationFile);
             _context.SetResults([destinationFile]);
