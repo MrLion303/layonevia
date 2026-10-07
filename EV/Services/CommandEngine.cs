@@ -194,11 +194,11 @@ public sealed class CommandEngine
         {
             if (command.Action == WindowAction.Desktop)
             {
-                SendKeys("%+{TAB}");
+                SendWindowsShortcut(0x12, 0x09, 0x10);
                 return CommandResult.Success("Listo, señor.");
             }
 
-            SendKeys("%{TAB}");
+            SendWindowsShortcut(0x12, 0x09);
             return CommandResult.Success("Cambiando de ventana, señor.");
         }
         catch (Exception ex)
@@ -264,15 +264,15 @@ public sealed class CommandEngine
                     return CommandResult.Success("Bloqueando el equipo, señor.");
 
                 case SystemAction.Mute:
-                    SendKeys("^{F10}");
+                    SendVirtualKey(0xAD);
                     return CommandResult.Success("Volumen silenciado, señor.");
 
                 case SystemAction.VolumeUp:
-                    SendKeys("{F12}");
+                    SendVirtualKey(0xAF);
                     return CommandResult.Success("Subiendo el volumen, señor.");
 
                 case SystemAction.VolumeDown:
-                    SendKeys("{F11}");
+                    SendVirtualKey(0xAE);
                     return CommandResult.Success("Bajando el volumen, señor.");
             }
         }
@@ -307,7 +307,7 @@ public sealed class CommandEngine
         try
         {
             Clipboard.SetText(text);
-            SendKeys("^v");
+            SendWindowsShortcut(0x11, 0x56);
             return true;
         }
         catch (Exception ex)
@@ -483,8 +483,33 @@ public sealed class CommandEngine
             .Trim();
     }
 
-    private static void SendKeys(string keys) =>
-        System.Windows.Forms.SendKeys.SendWait(keys);
+    private static void SendVirtualKey(byte virtualKey)
+    {
+        keybd_event(virtualKey, 0, 0, UIntPtr.Zero);
+        keybd_event(virtualKey, 0, 2, UIntPtr.Zero);
+    }
+
+    private static void SendWindowsShortcut(byte firstKey, byte secondKey, byte? thirdKey = null)
+    {
+        keybd_event(firstKey, 0, 0, UIntPtr.Zero);
+        keybd_event(secondKey, 0, 0, UIntPtr.Zero);
+
+        if (thirdKey.HasValue)
+            keybd_event(thirdKey.Value, 0, 0, UIntPtr.Zero);
+
+        if (thirdKey.HasValue)
+            keybd_event(thirdKey.Value, 0, 2, UIntPtr.Zero);
+
+        keybd_event(secondKey, 0, 2, UIntPtr.Zero);
+        keybd_event(firstKey, 0, 2, UIntPtr.Zero);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(
+        byte virtualKey,
+        byte scanCode,
+        uint flags,
+        UIntPtr extraInfo);
 
     [DllImport("user32.dll")]
     private static extern bool LockWorkStation();
