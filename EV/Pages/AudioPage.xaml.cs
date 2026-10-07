@@ -21,6 +21,9 @@ public partial class AudioPage : UserControl, IDisposable
         InitializeComponent();
         InputDevice.SelectionChanged += InputDevice_SelectionChanged;
         OutputDevice.SelectionChanged += OutputDevice_SelectionChanged;
+        VoiceSelection.SelectionChanged += VoiceSelection_SelectionChanged;
+        VoiceRate.ValueChanged += VoiceRate_ValueChanged;
+        VoiceVolume.ValueChanged += VoiceVolume_ValueChanged;
         Loaded += AudioPage_Loaded;
     }
 
@@ -48,6 +51,7 @@ public partial class AudioPage : UserControl, IDisposable
 
             SelectPreferredInput(settings);
             SelectPreferredOutput(settings);
+            LoadVoiceSettings(settings);
         }
         catch (Exception ex)
         {
@@ -56,6 +60,84 @@ public partial class AudioPage : UserControl, IDisposable
             OutputStatus.Text = "No se pudieron cargar las salidas. EV seguirá funcionando.";
         }
         finally { _loading = false; }
+    }
+
+    private void LoadVoiceSettings(AudioSettings settings)
+    {
+        _loading = true;
+        try
+        {
+            VoiceSelection.Items.Clear();
+            foreach (var voice in VoiceOutputService.GetAvailableVoices())
+                VoiceSelection.Items.Add(voice);
+
+            if (!string.IsNullOrWhiteSpace(settings.PreferredVoiceName))
+            {
+                var index = VoiceSelection.Items.IndexOf(settings.PreferredVoiceName);
+                if (index >= 0)
+                    VoiceSelection.SelectedIndex = index;
+            }
+
+            if (VoiceSelection.SelectedIndex < 0 && VoiceSelection.Items.Count > 0)
+                VoiceSelection.SelectedIndex = 0;
+
+            VoiceRate.Value = Math.Clamp(settings.VoiceRate, -10, 10);
+            VoiceVolume.Value = Math.Clamp(settings.VoiceVolume, 0, 100);
+            VoiceStatus.Text = VoiceSelection.Items.Count == 0
+                ? "Windows no tiene voces SAPI5 disponibles."
+                : $"Voz seleccionada: {VoiceSelection.SelectedItem}";
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudieron cargar las voces de EV");
+            VoiceStatus.Text = "No se pudieron cargar las voces instaladas.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void VoiceSelection_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || _disposed) return;
+        var settings = _settingsStore.Load();
+        settings.PreferredVoiceName = VoiceSelection.SelectedItem as string;
+        _settingsStore.Save(settings);
+        VoiceStatus.Text = $"Voz guardada: {settings.PreferredVoiceName ?? "automática"}";
+    }
+
+    private void VoiceRate_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || _disposed) return;
+        var settings = _settingsStore.Load();
+        settings.VoiceRate = (int)Math.Round(VoiceRate.Value);
+        _settingsStore.Save(settings);
+    }
+
+    private void VoiceVolume_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || _disposed) return;
+        var settings = _settingsStore.Load();
+        settings.VoiceVolume = (int)Math.Round(VoiceVolume.Value);
+        _settingsStore.Save(settings);
+    }
+
+    private async void TestVoice_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            VoiceStatus.Text = "Probando voz...";
+            var deviceName = await _voice.SpeakAsync("Hola, señor. Esta es la voz que EV tiene seleccionada.");
+            VoiceStatus.Text = deviceName is null
+                ? "No hay una salida de audio disponible."
+                : $"Voz reproducida por: {deviceName}";
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "Error al probar la voz de EV");
+            VoiceStatus.Text = "No se pudo reproducir la voz.";
+        }
     }
 
     private void SelectPreferredInput(AudioSettings s)
@@ -145,6 +227,9 @@ public partial class AudioPage : UserControl, IDisposable
         _voice.Dispose();
         InputDevice.SelectionChanged -= InputDevice_SelectionChanged;
         OutputDevice.SelectionChanged -= OutputDevice_SelectionChanged;
+        VoiceSelection.SelectionChanged -= VoiceSelection_SelectionChanged;
+        VoiceRate.ValueChanged -= VoiceRate_ValueChanged;
+        VoiceVolume.ValueChanged -= VoiceVolume_ValueChanged;
         Loaded -= AudioPage_Loaded;
     }
 }
