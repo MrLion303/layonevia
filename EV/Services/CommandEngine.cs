@@ -625,11 +625,10 @@ public sealed class CommandEngine
     {
         try
         {
-            var memory = GC.GetGCMemoryInfo();
-            var totalMemory = memory.TotalAvailableMemoryBytes;
-            var availableMemory = memory.MemoryLoadBytes >= 0
-                ? Math.Max(0, totalMemory - memory.MemoryLoadBytes)
-                : 0;
+            var memory = new MemoryStatusEx
+            {
+                Length = (uint)Marshal.SizeOf<MemoryStatusEx>()
+            };
 
             var systemDrive = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
             var drive = new DriveInfo(systemDrive);
@@ -639,12 +638,14 @@ public sealed class CommandEngine
                 $"Sistema: {Environment.OSVersion}",
                 $"Equipo: {Environment.MachineName}",
                 $"Procesadores lógicos: {Environment.ProcessorCount}",
-                $"Arquitectura: {RuntimeInformation.OSArchitecture}",
-                $"Memoria disponible para el proceso/runtime: {FormatBytes(totalMemory)}"
+                $"Arquitectura: {RuntimeInformation.OSArchitecture}"
             };
 
-            if (availableMemory > 0)
-                lines.Add($"Memoria estimada en uso: {FormatBytes(availableMemory)}");
+            if (GlobalMemoryStatusEx(ref memory))
+            {
+                lines.Add($"Memoria RAM: {FormatBytes(memory.TotalPhys)} total, {FormatBytes(memory.AvailPhys)} disponible");
+                lines.Add($"Uso de RAM: {memory.MemoryLoad}%");
+            }
 
             lines.Add($"Disco {drive.Name}: {FormatBytes(drive.AvailableFreeSpace)} libres de {FormatBytes(drive.TotalSize)}");
 
