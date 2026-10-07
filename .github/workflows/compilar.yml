@@ -20,6 +20,18 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore EV/EV.csproj
 
+      - name: Descargar modelo de voz en español
+        shell: pwsh
+        run: |
+          $url = "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip"
+          $zip = Join-Path $env:RUNNER_TEMP "vosk-es.zip"
+          $models = Join-Path $env:GITHUB_WORKSPACE "EV\models"
+
+          New-Item -ItemType Directory -Force -Path $models | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $models -Force
+          Remove-Item $zip -Force
+
       - name: Publicar EV
         run: dotnet publish EV/EV.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o salida
 
