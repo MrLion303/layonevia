@@ -20,7 +20,7 @@
                 <StackPanel>
                     <StackPanel Margin="4,8,4,28">
                         <TextBlock Text="EV" FontSize="34" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
-                        <TextBlock Text="Tu asistente" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="Tu asistente · «ibi»" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
                     </StackPanel>
 
                     <Button Content="Inicio" Click="Home_Click"/>
@@ -39,8 +39,8 @@
 
             <DockPanel Grid.Row="0" Margin="0,0,0,24">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Ellipse Width="10" Height="10" Fill="{StaticResource AccentBrush}" Margin="0,0,8,0"/>
-                    <TextBlock Text="EV lista" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                    <Ellipse x:Name="VoiceStatusDot" Width="10" Height="10" Fill="{StaticResource AccentBrush}" Margin="0,0,8,0"/>
+                    <TextBlock x:Name="VoiceStatusText" Text="Iniciando voz..." Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock x:Name="PageTitle" Text="Inicio" FontSize="28" FontWeight="SemiBold"/>
             </DockPanel>
