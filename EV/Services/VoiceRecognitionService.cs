@@ -31,10 +31,11 @@ public sealed class VoiceRecognitionService : IDisposable
     public event EventHandler<double>? AudioLevelChanged;
 
     public bool IsListening => _listening;
+    public bool WakeWordEnabled { get; set; } = true;
 
     public void Start()
     {
-        if (_disposed || _listening)
+        if (_disposed || _listening || !WakeWordEnabled)
             return;
 
         try
