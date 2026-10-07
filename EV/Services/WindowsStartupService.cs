@@ -33,7 +33,7 @@ public sealed class WindowsStartupService
             if (string.IsNullOrWhiteSpace(executable))
                 throw new InvalidOperationException("No se pudo localizar el ejecutable de EV.");
 
-            key.SetValue(ValueName, $""{executable}" --background");
+            key.SetValue(ValueName, $"\"{executable}\" --background");
         }
         else
         {

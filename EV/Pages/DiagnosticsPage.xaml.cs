@@ -57,7 +57,9 @@ public partial class DiagnosticsPage : UserControl
                 ? "AVISO · EV no está vinculado a una cuenta de memoria."
                 : "OK · Memoria vinculada y disponible para sincronización.");
             SetStatus(StartupStatus, appSettings.StartWithWindows
-                ? (_startup.IsEnabled() ? "OK · EV está configurado para iniciar con Windows." : "AVISO · La opción está activa, pero Windows no tiene la entrada.")
+                ? (_startup.IsEnabled()
+                    ? "OK · EV está configurado para iniciar con Windows."
+                    : "AVISO · La opción está activa, pero Windows no tiene la entrada.")
                 : "Desactivado.");
             SetStatus(LogStatus, File.Exists(logPath)
                 ? $"OK · {logPath}"
@@ -88,8 +90,11 @@ public partial class DiagnosticsPage : UserControl
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "EV");
             Directory.CreateDirectory(folder);
-            Process.Start(new ProcessStartInfo("explorer.exe", $""{folder}"")
+
+            Process.Start(new ProcessStartInfo
             {
+                FileName = "explorer.exe",
+                Arguments = $"\"{folder}\"",
                 UseShellExecute = true
             });
         }
