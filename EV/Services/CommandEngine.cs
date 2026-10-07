@@ -21,6 +21,10 @@ public sealed class CommandEngine
         if (command.Length == 0)
             return CommandResult.Success("Sí, señor.");
 
+        var repeat = TryHandleRepeatCommand(command);
+        if (repeat is not null)
+            return repeat;
+
         var confirmation = TryHandlePendingConfirmation(command);
         if (confirmation is not null)
             return confirmation;
@@ -144,6 +148,20 @@ public sealed class CommandEngine
 
         return CommandResult.Failure(
             $"Todavía no tengo una acción para «{command}». Podemos enseñarme esa orden después.");
+    }
+
+    private CommandResult? TryHandleRepeatCommand(string text)
+    {
+        var normalized = Normalize(text);
+        if (!ContainsAny(normalized, "haz lo mismo", "hazlo mismo", "repite eso", "repite la operacion", "repite la operación"))
+            return null;
+
+        var action = _context.GetRepeatableAction();
+        if (action is null)
+            return CommandResult.Failure("No tengo una operación anterior que pueda repetir.");
+
+        var command = new FileActionCommand(action.Action, action.SourcePath, action.DestinationPath, action.NewName);
+        return ExecuteFileAction(command);
     }
 
     private CommandResult? TryHandlePendingConfirmation(string text)
