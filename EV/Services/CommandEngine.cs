@@ -666,6 +666,19 @@ public sealed class CommandEngine
         return null;
     }
 
+    private void UpdateTaskState(string action, string result, bool succeeded)
+    {
+        var task = _context.CurrentTask;
+        if (task is null)
+            return;
+
+        var step = string.IsNullOrWhiteSpace(action) ? "Ejecutando la solicitud" : action;
+        var nextNumber = Math.Max(1, task.StepNumber + 1);
+        _context.SetTaskStep(step, nextNumber, Math.Max(nextNumber, task.TotalSteps));
+        if (!succeeded)
+            _context.FailTask(result);
+    }
+
     private CommandResult? TryHandleRepeatCommand(string text)
     {
         var normalized = Normalize(text);
