@@ -2264,6 +2264,22 @@ public sealed class CommandEngine
                 case SystemAction.VolumeDown:
                     SendVirtualKey(0xAE);
                     return CommandResult.Success("Bajando el volumen, señor.");
+
+                case SystemAction.PlayPause:
+                    SendVirtualKey(0xB3);
+                    return CommandResult.Success("Reproducción pausada o reanudada, señor.");
+
+                case SystemAction.NextTrack:
+                    SendVirtualKey(0xB0);
+                    return CommandResult.Success("Pasando a la siguiente canción, señor.");
+
+                case SystemAction.PreviousTrack:
+                    SendVirtualKey(0xB1);
+                    return CommandResult.Success("Volviendo a la canción anterior, señor.");
+
+                case SystemAction.StopMedia:
+                    SendVirtualKey(0xB2);
+                    return CommandResult.Success("Reproducción detenida, señor.");
             }
         }
         catch (Exception ex)
