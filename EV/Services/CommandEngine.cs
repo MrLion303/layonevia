@@ -2467,7 +2467,18 @@ public sealed class CommandEngine
                 UseShellExecute = true
             });
 
-            return true;
+            var deadline = DateTime.UtcNow.AddSeconds(4);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (FindWindowByTarget(normalized) != IntPtr.Zero)
+                    return true;
+
+                Thread.Sleep(150);
+            }
+
+            return Process.GetProcessesByName(
+                Path.GetFileNameWithoutExtension(executable.Replace(":", string.Empty)))
+                .Any();
         }
         catch (Exception ex)
         {
@@ -2525,7 +2536,35 @@ public sealed class CommandEngine
             return false;
 
         ShowWindow(handle, 9);
-        return SetForegroundWindow(handle);
+        if (!SetForegroundWindow(handle))
+            return false;
+
+        Thread.Sleep(50);
+        return GetForegroundWindow() == handle || IsForegroundWindowOwnedByTarget(handle, normalizedTarget);
+    }
+
+    private static bool IsForegroundWindowOwnedByTarget(IntPtr expectedHandle, string target)
+    {
+        var foreground = GetForegroundWindow();
+        if (foreground == expectedHandle)
+            return true;
+
+        if (foreground == IntPtr.Zero)
+            return false;
+
+        GetWindowThreadProcessId(foreground, out var processId);
+        if (processId == 0)
+            return false;
+
+        try
+        {
+            using var process = Process.GetProcessById((int)processId);
+            return Normalize(process.ProcessName).Equals(target, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool FindAndShowWindow(string target, int command)
