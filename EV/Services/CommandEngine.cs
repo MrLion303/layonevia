@@ -685,51 +685,6 @@ public sealed class CommandEngine
     }
 
 
-    {
-        var normalizedRequested = Normalize(requestedName);
-        var requestedBase = Normalize(Path.GetFileNameWithoutExtension(requestedName));
-        var hasExtension = !string.IsNullOrWhiteSpace(Path.GetExtension(requestedName));
-
-        try
-        {
-            var exactMatches = new List<string>();
-
-            foreach (var file in Directory.EnumerateFiles(
-                root,
-                "*",
-                new EnumerationOptions
-                {
-                    RecurseSubdirectories = true,
-                    IgnoreInaccessible = true,
-                    ReturnSpecialDirectories = false
-                }))
-            {
-                var name = Path.GetFileName(file);
-                var normalizedName = Normalize(name);
-
-                if (hasExtension)
-                {
-                    if (normalizedName == normalizedRequested)
-                        exactMatches.Add(file);
-                }
-                else if (Normalize(Path.GetFileNameWithoutExtension(name)) == requestedBase)
-                {
-                    exactMatches.Add(file);
-                }
-            }
-
-            return exactMatches
-                .OrderBy(path => GetFileMatchPriority(path, hasExtension))
-                .ThenBy(path => path.Length)
-                .FirstOrDefault();
-        }
-        catch (Exception ex)
-        {
-            App.LogException(ex, $"No se pudo buscar el archivo {requestedName}");
-            return null;
-        }
-    }
-
     private static int GetFileMatchPriority(string path, bool hasExtension)
     {
         if (hasExtension)
