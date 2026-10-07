@@ -94,6 +94,10 @@ public sealed class ConversationAiService
             Las rutinas son acciones guardadas por el usuario. Solo ejecútalas cuando el usuario pida ejecutar
             una rutina concreta; nunca ejecutes una rutina solo porque su nombre aparezca en una conversación.
             Solo crea una rutina cuando el usuario pida explícitamente guardar o aprender una secuencia.
+            Si el usuario pide guardar como rutina algo que EV acaba de hacer, usa "create_routine_from_task"
+            para convertir la secuencia reciente de acciones exitosas en una rutina. No lo uses por iniciativa propia.
+            Puedes modificar pasos individuales de una rutina con "modify_routine_step" cuando el usuario pida
+            añadir, eliminar, mover o reemplazar un paso concreto; no necesitas reconstruir toda la rutina para eso.
             Para eliminar una rutina, exige una petición explícita de eliminación.
             No guardes una memoria permanente solo porque el usuario comentó algo; solo el sistema de EV
             debe crear recuerdos cuando el usuario lo pida explícitamente.
@@ -295,7 +299,19 @@ public sealed class ConversationAiService
             "create_routine",
             "Crea una rutina persistente con pasos de herramientas. Solo úsala cuando el usuario haya pedido explícitamente crear, guardar o aprender una rutina.",
             """
-            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"description":{"type":"string","description":"Descripción breve de lo que hace."},"steps":{"type":"array","description":"Pasos ordenados que componen la rutina.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta, por ejemplo {"application":"Chrome"}"}"},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name","description","steps"],"additionalProperties":false}
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"description":{"type":"string","description":"Descripción breve de lo que hace."},"steps":{"type":"array","description":"Pasos ordenados que componen la rutina.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta."}},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name","description","steps"],"additionalProperties":false}
+            """),
+        FunctionTool(
+            "create_routine_from_task",
+            "Guarda como rutina la secuencia reciente de acciones exitosas que EV acaba de ejecutar. Úsala solo si el usuario pide explícitamente guardar, aprender o convertir esa secuencia en una rutina.",
+            """
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la nueva rutina."},"description":{"type":"string","description":"Descripción opcional de lo que hace la rutina."}},"required":["name","description"],"additionalProperties":false}
+            """),
+        FunctionTool(
+            "modify_routine_step",
+            "Modifica un paso concreto de una rutina: añadir, eliminar, mover o reemplazar. Úsala solo cuando el usuario pida explícitamente modificar un paso.",
+            """
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"action":{"type":"string","enum":["add","remove","move","replace"]},"index":{"type":"integer","description":"Índice del paso empezando en cero."},"new_index":{"type":"integer","description":"Nueva posición empezando en cero para mover un paso."},"step":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta."}},"required":["tool","arguments"],"additionalProperties":false}},"required":["name","action"],"additionalProperties":false}
             """),
         FunctionTool(
             "inspect_routine",
@@ -335,7 +351,7 @@ public sealed class ConversationAiService
             """),
         FunctionTool(
             "get_current_context",
-            "Obtiene el contexto actual de EV: ventana activa, último archivo, última carpeta y resultados recientes. Úsala para resolver referencias ambiguas o continuar una tarea.",
+            "Obtiene el contexto actual de EV, incluyendo ventana activa, último archivo, última carpeta, resultados recientes y estado de la tarea actual.",
             """
             {"type":"object","properties":{},"additionalProperties":false}
             """),
