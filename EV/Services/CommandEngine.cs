@@ -9,6 +9,7 @@ namespace EV.Services;
 public sealed class CommandEngine
 {
     private readonly MemorySyncService _memory = new();
+    private readonly IntentInterpreter _intentInterpreter = new();
 
     public async Task<CommandResult> ExecuteAsync(
         string text,
@@ -87,6 +88,18 @@ public sealed class CommandEngine
     {
         command = default;
 
+        if (_intentInterpreter.TryInterpret(text, out var intent) &&
+            intent.Action == NaturalAction.OpenFile &&
+            !string.IsNullOrWhiteSpace(intent.FileName))
+        {
+            command = new FileCommand(
+                ResolveNaturalLocation(intent.Location),
+                intent.FolderName,
+                intent.FileName);
+
+            return true;
+        }
+
         var normalized = Normalize(text);
         if (!ContainsAny(normalized, "abre", "abrir", "open", "busca", "buscar", "encuentra", "encuentre"))
             return false;
@@ -141,8 +154,10 @@ public sealed class CommandEngine
         }
     }
 
-    private static string? ResolveNaturalLocation(string normalized)
+    private static string ResolveNaturalLocation(string? normalized)
     {
+        normalized ??= string.Empty;
+
         if (normalized.Contains("escritorio", StringComparison.Ordinal))
             return Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
 
