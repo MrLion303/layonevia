@@ -91,6 +91,8 @@ public sealed class ConversationAiService
             natural cuando sean relevantes. Si una preferencia contradice otra, prioriza la más reciente.
             Cuando una tarea dependa de una preferencia concreta, consulta "get_preferences" antes de elegir entre
             alternativas. No inventes preferencias que no estén almacenadas.
+            Las rutinas son acciones guardadas por el usuario. Solo ejecútalas cuando el usuario pida ejecutar
+            una rutina concreta; nunca ejecutes una rutina solo porque su nombre aparezca en una conversación.
             No guardes una memoria permanente solo porque el usuario comentó algo; solo el sistema de EV
             debe crear recuerdos cuando el usuario lo pida explícitamente.
             """;
@@ -287,6 +289,12 @@ public sealed class ConversationAiService
 
     private static object[] BuildTools() =>
     [
+        FunctionTool(
+            "run_routine",
+            "Ejecuta una rutina previamente guardada por el usuario. Úsala cuando el usuario pida explícitamente ejecutar una rutina por su nombre.",
+            """
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre exacto o natural de la rutina que se desea ejecutar."}},"required":["name"],"additionalProperties":false}
+            """),
         FunctionTool(
             "get_preferences",
             "Obtiene preferencias permanentes del usuario relacionadas con un tema concreto.",
