@@ -84,7 +84,7 @@ public sealed class AudioDeviceManager
         try
         {
             using var enumerator = new MMDeviceEnumerator();
-            using var collection = enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            var collection = enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
 
             foreach (var device in collection)
             {
