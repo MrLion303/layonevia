@@ -647,6 +647,15 @@ public sealed class CommandEngine
                 lines.Add($"Uso de RAM: {memory.MemoryLoad}%");
             }
 
+            var power = new SystemPowerStatus();
+            if (GetSystemPowerStatus(ref power) && power.BatteryLifePercent <= 100)
+            {
+                var estadoBateria = power.ACLineStatus == 1 || (power.BatteryFlag & 8) != 0
+                    ? "cargando"
+                    : "con batería";
+                lines.Add($"Batería: {power.BatteryLifePercent}% ({estadoBateria})");
+            }
+
             lines.Add($"Disco {drive.Name}: {FormatBytes(drive.AvailableFreeSpace)} libres de {FormatBytes(drive.TotalSize)}");
 
             return AiToolResult.Success(string.Join(Environment.NewLine, lines));
