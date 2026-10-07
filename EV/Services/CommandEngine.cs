@@ -10,6 +10,7 @@ public sealed class CommandEngine
 {
     private readonly MemorySyncService _memory = new();
     private readonly IntentInterpreter _intentInterpreter = new();
+    private readonly ConversationContext _context = new();
 
     public async Task<CommandResult> ExecuteAsync(
         string text,
@@ -38,7 +39,12 @@ public sealed class CommandEngine
         }
 
         if (TryGetFileCommand(command, out var fileCommand))
-            return ExecuteFileCommand(fileCommand);
+        {
+            var result = ExecuteFileCommand(fileCommand);
+            if (result.Succeeded)
+                _context.SetOpenedFile(fileCommand.FileName);
+            return result;
+        }
 
         if (TryGetApplicationCommand(command, out var appCommand))
             return ExecuteApplicationCommand(appCommand);
