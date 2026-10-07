@@ -856,7 +856,7 @@ public sealed class CommandEngine
         return root.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
     }
 
-    private static AiToolResult ExecuteAiApplicationTool(
+    private AiToolResult ExecuteAiApplicationTool(
         System.Text.Json.JsonElement root,
         ApplicationAction action)
     {
@@ -866,12 +866,15 @@ public sealed class CommandEngine
 
         var target = application.GetString()!;
         var result = ExecuteApplicationCommand(new ApplicationCommand(action, target));
-        return result.Succeeded
-            ? AiToolResult.Success(result.Response)
-            : AiToolResult.Failure(result.Response);
+
+        if (!result.Succeeded)
+            return AiToolResult.Failure(result.Response);
+
+        UpdateOperationalWindowContext(target, action == ApplicationAction.Open || action == ApplicationAction.Switch);
+        return AiToolResult.Success(result.Response);
     }
 
-    private static AiToolResult ExecuteAiWindowTool(System.Text.Json.JsonElement root)
+    private AiToolResult ExecuteAiWindowTool(System.Text.Json.JsonElement root)
     {
         if (!root.TryGetProperty("action", out var actionElement))
             return AiToolResult.Failure("No se indicó la acción de ventana.");
@@ -895,9 +898,103 @@ public sealed class CommandEngine
             _ => false
         };
 
-        return success
-            ? AiToolResult.Success("La acción de ventana se ejecutó correctamente.")
-            : AiToolResult.Failure("No pude ejecutar esa acción de ventana.");
+        if (!success)
+        {
+            var windows = GetVisibleWindowSummaries(8);
+            var hint = windows.Count == 0
+                ? string.Empty
+                : $" Ventanas visibles: {string.Join(" | ", windows)}";
+            return AiToolResult.Failure($"No pude ejecutar esa acción de ventana.{hint}");
+        }
+
+        UpdateOperationalWindowContext(target, action is "switch" or "restore" or "maximize");
+        return AiToolResult.Success("La acción de ventana se ejecutó correctamente.");
+    }
+
+    private void UpdateOperationalWindowContext(string target, bool expectActiveWindow)
+    {
+        var foreground = GetForegroundWindow();
+        if (foreground != IntPtr.Zero)
+        {
+            var title = GetWindowTitle(foreground);
+            GetWindowThreadProcessId(foreground, out var pid);
+            var processName = string.Empty;
+
+            if (pid != 0)
+            {
+                try
+                {
+                    using var process = Process.GetProcessById((int)pid);
+                    processName = process.ProcessName;
+                }
+                catch
+                {
+                }
+            }
+
+            _context.SetActiveWindow(title, processName);
+        }
+
+        if (expectActiveWindow && !string.IsNullOrWhiteSpace(target))
+        {
+            var handle = FindWindowByTarget(target);
+            if (handle != IntPtr.Zero)
+            {
+                var title = GetWindowTitle(handle);
+                GetWindowThreadProcessId(handle, out var pid);
+                var processName = string.Empty;
+
+                if (pid != 0)
+                {
+                    try
+                    {
+                        using var process = Process.GetProcessById((int)pid);
+                        processName = process.ProcessName;
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                _context.SetActiveWindow(title, processName);
+                _context.SetActiveApplication(target);
+            }
+        }
+    }
+
+    private static List<string> GetVisibleWindowSummaries(int limit)
+    {
+        var windows = new List<string>();
+
+        EnumWindows((handle, _) =>
+        {
+            if (!IsWindowVisible(handle))
+                return true;
+
+            var title = GetWindowTitle(handle);
+            if (string.IsNullOrWhiteSpace(title))
+                return true;
+
+            GetWindowThreadProcessId(handle, out var pid);
+            var processName = string.Empty;
+
+            if (pid != 0)
+            {
+                try
+                {
+                    using var process = Process.GetProcessById((int)pid);
+                    processName = process.ProcessName;
+                }
+                catch
+                {
+                }
+            }
+
+            windows.Add(processName.Length == 0 ? title : $"{title} [{processName}]");
+            return windows.Count < limit;
+        }, IntPtr.Zero);
+
+        return windows;
     }
 
     private static AiToolResult ExecuteAiSystemTool(System.Text.Json.JsonElement root)
