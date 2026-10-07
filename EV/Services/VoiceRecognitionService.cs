@@ -1,14 +1,25 @@
-using System.Globalization;
-using System.Speech.Recognition;
 using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using EV.Services;
+using NAudio.Wave;
+using Vosk;
 
 namespace EV.Services;
 
 public sealed class VoiceRecognitionService : IDisposable
 {
-    private SpeechRecognitionEngine? _engine;
+    private const int SampleRate = 16000;
+    private const string ModelFolderName = "vosk-model-small-es-0.42";
+
+    private readonly AudioSettingsStore _settingsStore = new();
+
+    private Model? _model;
+    private VoskRecognizer? _recognizer;
+    private WaveInEvent? _capture;
     private bool _disposed;
     private bool _listening;
+    private readonly object _sync = new();
 
     public event EventHandler<VoiceCommandEventArgs>? CommandRecognized;
     public event EventHandler<string>? StatusChanged;
@@ -22,31 +33,49 @@ public sealed class VoiceRecognitionService : IDisposable
 
         try
         {
-            var culture = FindSpanishCulture();
+            var modelPath = Path.Combine(AppContext.BaseDirectory, "models", ModelFolderName);
 
-            if (culture is null)
+            if (!Directory.Exists(modelPath))
             {
                 StatusChanged?.Invoke(this,
-                    "No hay un reconocedor de voz en español instalado en Windows.");
+                    "Falta el modelo de reconocimiento de voz en español.");
                 return;
             }
 
-            _engine = new SpeechRecognitionEngine(culture);
-            _engine.LoadGrammar(new DictationGrammar());
-            _engine.SpeechRecognized += Engine_SpeechRecognized;
-            _engine.RecognizeCompleted += Engine_RecognizeCompleted;
-            _engine.SetInputToDefaultAudioDevice();
-            _engine.RecognizeAsync(RecognizeMode.Multiple);
+            _model = new Model(modelPath);
+            Vosk.Vosk.SetLogLevel(-1);
+
+            _recognizer = new VoskRecognizer(_model, SampleRate);
+            _recognizer.SetMaxAlternatives(0);
+            _recognizer.SetWords(false);
+
+            var deviceNumber = FindWaveInDeviceNumber();
+            _capture = new WaveInEvent
+            {
+                DeviceNumber = deviceNumber,
+                WaveFormat = new WaveFormat(SampleRate, 16, 1),
+                BufferMilliseconds = 100
+            };
+
+            _capture.DataAvailable += Capture_DataAvailable;
+            _capture.RecordingStopped += Capture_RecordingStopped;
+            _capture.StartRecording();
 
             _listening = true;
-            StatusChanged?.Invoke(this, $"Escuchando «Oye ibi» · {culture.Name}");
+            StatusChanged?.Invoke(
+                this,
+                deviceNumber >= 0
+                    ? $"Escuchando «Oye ibi» · reconocimiento local"
+                    : "Escuchando «Oye ibi» · micrófono automático");
         }
         catch (Exception ex)
         {
-            App.LogException(ex, "No se pudo iniciar el reconocimiento de voz");
+            App.LogException(ex, "No se pudo iniciar el reconocimiento de voz local");
             StopInternal();
-            StatusChanged?.Invoke(this,
-                "El reconocimiento de voz no está disponible.");
+
+            StatusChanged?.Invoke(
+                this,
+                "No se pudo iniciar el reconocimiento de voz local.");
         }
     }
 
@@ -56,16 +85,38 @@ public sealed class VoiceRecognitionService : IDisposable
         StatusChanged?.Invoke(this, "Reconocimiento de voz detenido.");
     }
 
-    private void Engine_SpeechRecognized(object? sender, SpeechRecognizedEventArgs e)
+    private void Capture_DataAvailable(object? sender, WaveInEventArgs e)
     {
-        if (e.Result.Confidence < 0.55f)
-            return;
+        try
+        {
+            VoskRecognizer? recognizer;
 
-        var text = e.Result.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(text))
-            return;
+            lock (_sync)
+                recognizer = _recognizer;
 
-        var normalized = RemoveAccents(text).ToLowerInvariant();
+            if (recognizer is null)
+                return;
+
+            if (!recognizer.AcceptWaveform(e.Buffer, e.BytesRecorded))
+                return;
+
+            var json = recognizer.Result();
+            var text = ExtractText(json);
+
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+
+            ProcessRecognizedText(text);
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "Error procesando el audio del reconocimiento de voz");
+        }
+    }
+
+    private void ProcessRecognizedText(string text)
+    {
+        var normalized = Normalize(text);
         const string wakeWord = "oye ibi";
 
         var index = normalized.IndexOf(wakeWord, StringComparison.Ordinal);
@@ -73,73 +124,145 @@ public sealed class VoiceRecognitionService : IDisposable
             return;
 
         var commandStart = index + wakeWord.Length;
-        var command = text[commandStart..].Trim(' ', ',', '.', ';', ':', '¡', '!', '?', '¿');
+        var command = text.Length > commandStart
+            ? text[commandStart..].Trim(' ', ',', '.', ';', ':', '¡', '!', '?', '¿')
+            : string.Empty;
 
         CommandRecognized?.Invoke(
             this,
-            new VoiceCommandEventArgs(text, command, e.Result.Confidence));
+            new VoiceCommandEventArgs(text, command, 1.0f));
     }
 
-    private void Engine_RecognizeCompleted(object? sender, RecognizeCompletedEventArgs e)
+    private int FindWaveInDeviceNumber()
     {
-        if (_disposed)
-            return;
-
-        if (e.Error is not null)
+        try
         {
-            App.LogException(e.Error, "El reconocimiento de voz terminó con un error");
-            _listening = false;
-            StatusChanged?.Invoke(this,
-                "El reconocimiento de voz se detuvo por un error.");
+            var settings = _settingsStore.Load();
+            var preferredId = settings.PreferredInputId;
+
+            using var devices = new AudioDeviceManager().TryGetInput(preferredId);
+
+            if (devices is not null)
+            {
+                var preferredName = devices.FriendlyName;
+                var number = FindWaveInDeviceByName(preferredName);
+
+                if (number >= 0)
+                    return number;
+            }
+
+            var defaultNumber = FindWaveInDeviceByName(
+                settings.PreferredInputName);
+
+            if (defaultNumber >= 0)
+                return defaultNumber;
         }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo localizar el micrófono preferido");
+        }
+
+        return WaveInEvent.DeviceCount > 0 ? 0 : -1;
     }
 
-    private static CultureInfo? FindSpanishCulture()
+    private static int FindWaveInDeviceByName(string? targetName)
     {
-        var installed = SpeechRecognitionEngine.InstalledRecognizers();
+        if (string.IsNullOrWhiteSpace(targetName))
+            return -1;
 
-        var preferred = installed.FirstOrDefault(x =>
-            string.Equals(x.Culture.Name, "es-MX", StringComparison.OrdinalIgnoreCase));
+        for (var i = 0; i < WaveInEvent.DeviceCount; i++)
+        {
+            try
+            {
+                var capabilities = WaveInEvent.GetCapabilities(i);
 
-        if (preferred is not null)
-            return preferred.Culture;
+                if (string.Equals(
+                        Normalize(capabilities.ProductName),
+                        Normalize(targetName),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+            catch
+            {
+            }
+        }
 
-        var spanish = installed.FirstOrDefault(x =>
-            x.Culture.Name.StartsWith("es-", StringComparison.OrdinalIgnoreCase));
-
-        return spanish?.Culture;
+        return -1;
     }
 
-    private static string RemoveAccents(string value)
+    private static string ExtractText(string json)
     {
-        var normalized = value.Normalize(NormalizationForm.FormD);
-        var chars = normalized
-            .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+
+            if (document.RootElement.TryGetProperty("text", out var text))
+                return text.GetString()?.Trim() ?? string.Empty;
+        }
+        catch
+        {
+        }
+
+        return string.Empty;
+    }
+
+    private static string Normalize(string value)
+    {
+        var normalized = value
+            .Normalize(NormalizationForm.FormD)
+            .Where(c =>
+                CharUnicodeInfo.GetUnicodeCategory(c) !=
+                System.Globalization.UnicodeCategory.NonSpacingMark)
             .ToArray();
 
-        return new string(chars).Normalize(NormalizationForm.FormC);
+        var withoutAccents = new string(normalized).ToLowerInvariant();
+
+        return Regex.Replace(
+            withoutAccents,
+            @"[^p{L}p{Nd}]+",
+            " ").Trim();
+    }
+
+    private void Capture_RecordingStopped(object? sender, StoppedEventArgs e)
+    {
+        if (_disposed || e.Exception is null)
+            return;
+
+        App.LogException(
+            e.Exception,
+            "El micrófono detuvo el reconocimiento de voz");
     }
 
     private void StopInternal()
     {
         _listening = false;
 
-        if (_engine is null)
-            return;
-
-        try
+        lock (_sync)
         {
-            _engine.RecognizeAsyncCancel();
-            _engine.RecognizeAsyncStop();
-        }
-        catch
-        {
-        }
+            if (_capture is not null)
+            {
+                try
+                {
+                    _capture.DataAvailable -= Capture_DataAvailable;
+                    _capture.RecordingStopped -= Capture_RecordingStopped;
+                    _capture.StopRecording();
+                }
+                catch
+                {
+                }
 
-        _engine.SpeechRecognized -= Engine_SpeechRecognized;
-        _engine.RecognizeCompleted -= Engine_RecognizeCompleted;
-        _engine.Dispose();
-        _engine = null;
+                _capture.Dispose();
+                _capture = null;
+            }
+
+            _recognizer?.Dispose();
+            _recognizer = null;
+
+            _model?.Dispose();
+            _model = null;
+        }
     }
 
     public void Dispose()
