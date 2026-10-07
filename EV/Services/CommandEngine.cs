@@ -39,6 +39,15 @@ public sealed class CommandEngine
                 case "get_system_state":
                     return ExecuteAiSystemStateTool();
 
+                case "list_open_windows":
+                    return ExecuteAiListOpenWindowsTool();
+
+                case "get_system_info":
+                    return ExecuteAiSystemInfoTool();
+
+                case "clipboard":
+                    return ExecuteAiClipboardTool(root);
+
                 case "get_preferences":
                     return ExecuteAiPreferencesTool(root);
 
@@ -556,6 +565,156 @@ public sealed class CommandEngine
             App.LogException(ex, "No se pudo obtener el estado de Windows");
             return AiToolResult.Failure("No pude consultar el estado actual de Windows.");
         }
+    }
+
+    private AiToolResult ExecuteAiListOpenWindowsTool()
+    {
+        try
+        {
+            var windows = new List<string>();
+
+            EnumWindows((handle, _) =>
+            {
+                if (!IsWindowVisible(handle))
+                    return true;
+
+                var title = GetWindowTitle(handle);
+                if (string.IsNullOrWhiteSpace(title))
+                    return true;
+
+                GetWindowThreadProcessId(handle, out var processId);
+
+                var processName = string.Empty;
+                if (processId != 0)
+                {
+                    try
+                    {
+                        using var process = Process.GetProcessById((int)processId);
+                        processName = process.ProcessName;
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                windows.Add(processName.Length == 0
+                    ? title
+                    : $"{title} [{processName}]");
+
+                return windows.Count < 50;
+            }, IntPtr.Zero);
+
+            if (windows.Count == 0)
+                return AiToolResult.Success("No encontré ventanas visibles con título.");
+
+            return AiToolResult.Success(
+                $"Ventanas visibles ({windows.Count}):{Environment.NewLine}" +
+                string.Join(Environment.NewLine, windows.Select((x, i) => $"{i + 1}. {x}")));
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo enumerar las ventanas abiertas");
+            return AiToolResult.Failure("No pude consultar las ventanas abiertas.");
+        }
+    }
+
+    private AiToolResult ExecuteAiSystemInfoTool()
+    {
+        try
+        {
+            var memory = GC.GetGCMemoryInfo();
+            var totalMemory = memory.TotalAvailableMemoryBytes;
+            var availableMemory = memory.MemoryLoadBytes >= 0
+                ? Math.Max(0, totalMemory - memory.MemoryLoadBytes)
+                : 0;
+
+            var systemDrive = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
+            var drive = new DriveInfo(systemDrive);
+
+            var lines = new List<string>
+            {
+                $"Sistema: {Environment.OSVersion}",
+                $"Equipo: {Environment.MachineName}",
+                $"Procesadores lógicos: {Environment.ProcessorCount}",
+                $"Arquitectura: {RuntimeInformation.OSArchitecture}",
+                $"Memoria disponible para el proceso/runtime: {FormatBytes(totalMemory)}"
+            };
+
+            if (availableMemory > 0)
+                lines.Add($"Memoria estimada en uso: {FormatBytes(availableMemory)}");
+
+            lines.Add($"Disco {drive.Name}: {FormatBytes(drive.AvailableFreeSpace)} libres de {FormatBytes(drive.TotalSize)}");
+
+            return AiToolResult.Success(string.Join(Environment.NewLine, lines));
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo consultar la información del sistema");
+            return AiToolResult.Failure("No pude consultar la información del equipo.");
+        }
+    }
+
+    private AiToolResult ExecuteAiClipboardTool(JsonElement root)
+    {
+        var action = GetToolString(root, "action").Trim().ToLowerInvariant();
+
+        if (action is "leer" or "read")
+        {
+            try
+            {
+                if (!Clipboard.ContainsText())
+                    return AiToolResult.Success("El portapapeles no contiene texto.");
+
+                var value = Clipboard.GetText();
+                if (string.IsNullOrEmpty(value))
+                    return AiToolResult.Success("El portapapeles contiene texto vacío.");
+
+                return AiToolResult.Success($"Contenido del portapapeles:{Environment.NewLine}{value}");
+            }
+            catch (Exception ex)
+            {
+                App.LogException(ex, "No se pudo leer el portapapeles");
+                return AiToolResult.Failure("No pude leer el portapapeles.");
+            }
+        }
+
+        if (action is "escribir" or "write")
+        {
+            var text = GetToolString(root, "text");
+            if (string.IsNullOrEmpty(text))
+                return AiToolResult.Failure("No se indicó el texto que debe copiarse al portapapeles.");
+
+            try
+            {
+                Clipboard.SetText(text);
+                return AiToolResult.Success("Texto copiado al portapapeles.");
+            }
+            catch (Exception ex)
+            {
+                App.LogException(ex, "No se pudo escribir en el portapapeles");
+                return AiToolResult.Failure("No pude escribir en el portapapeles.");
+            }
+        }
+
+        return AiToolResult.Failure("La acción del portapapeles debe ser leer o escribir.");
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+            return $"{bytes} B";
+
+        var units = new[] { "KB", "MB", "GB", "TB" };
+        var value = (double)bytes / 1024;
+        var index = 0;
+
+        while (value >= 1024 && index < units.Length - 1)
+        {
+            value /= 1024;
+            index++;
+        }
+
+        return $"{value:0.##} {units[index]}";
     }
 
     private AiToolResult ExecuteAiPreferencesTool(JsonElement root)
