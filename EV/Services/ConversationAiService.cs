@@ -295,7 +295,7 @@ public sealed class ConversationAiService
             "create_routine",
             "Crea una rutina persistente con pasos de herramientas. Solo úsala cuando el usuario haya pedido explícitamente crear, guardar o aprender una rutina.",
             """
-            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"description":{"type":"string","description":"Descripción breve de lo que hace."},"steps":{"type":"array","description":"Pasos ordenados que componen la rutina.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"object","additionalProperties":true}},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name","description","steps"],"additionalProperties":false}
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"description":{"type":"string","description":"Descripción breve de lo que hace."},"steps":{"type":"array","description":"Pasos ordenados que componen la rutina.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta, por ejemplo {"application":"Chrome"}"}"},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name","description","steps"],"additionalProperties":false}
             """),
         FunctionTool(
             "list_routines",
