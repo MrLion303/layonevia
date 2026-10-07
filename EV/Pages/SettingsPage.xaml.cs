@@ -32,6 +32,61 @@ public partial class SettingsPage : UserControl
         }
     }
 
+    private async void TestAi_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            AiStatus.Text = "Probando conexión...";
+            var ai = new ConversationAiService();
+            if (!ai.IsConfigured)
+            {
+                AiStatus.Text = "No hay una clave configurada.";
+                return;
+            }
+
+            var result = await ai.RespondAsync("Responde únicamente: conexión correcta.");
+            AiStatus.Text = result.Succeeded
+                ? $"Conexión correcta: {result.Text}"
+                : result.Text;
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo probar la conexión de IA");
+            AiStatus.Text = "No se pudo comprobar la conexión.";
+        }
+    }
+
+    private void ClearAi_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var confirm = MessageBox.Show(
+                "¿Quieres borrar la clave de API guardada en este equipo?",
+                "EV",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            var current = _aiSettings.Load();
+            _aiSettings.Save(new AiSettings
+            {
+                ApiKey = null,
+                Model = current.Model,
+                Endpoint = current.Endpoint
+            });
+
+            ApiKeyBox.Clear();
+            AiStatus.Text = "Clave eliminada.";
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo borrar la clave de IA");
+            AiStatus.Text = "No se pudo borrar la clave.";
+        }
+    }
+
     private void SaveAi_Click(object sender, RoutedEventArgs e)
     {
         try
