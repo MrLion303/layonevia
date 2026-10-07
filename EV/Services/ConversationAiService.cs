@@ -357,7 +357,7 @@ public sealed class ConversationAiService
             """),
         FunctionTool(
             "get_current_context",
-            "Obtiene el contexto actual de EV, incluyendo ventana activa, último archivo, última carpeta, resultados recientes y estado de la tarea actual.",
+            "Obtiene el contexto actual de EV, incluyendo ventana activa, proceso, aplicación recordada, rutas recientes, secuencia de acciones y estado de la tarea actual.",
             """
             {"type":"object","properties":{},"additionalProperties":false}
             """),
