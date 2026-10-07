@@ -299,7 +299,7 @@ public sealed class ConversationAiService
             "create_routine",
             "Crea una rutina persistente con pasos de herramientas. Solo úsala cuando el usuario haya pedido explícitamente crear, guardar o aprender una rutina.",
             """
-            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"description":{"type":"string","description":"Descripción breve de lo que hace."},"steps":{"type":"array","description":"Pasos ordenados que componen la rutina.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta."}},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name","description","steps"],"additionalProperties":false}
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"description":{"type":"string","description":"Descripción breve de lo que hace."},"steps":{"type":"array","description":"Pasos ordenados que componen la rutina.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action","clipboard"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta."}},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name","description","steps"],"additionalProperties":false}
             """),
         FunctionTool(
             "create_routine_from_task",
@@ -311,7 +311,7 @@ public sealed class ConversationAiService
             "modify_routine_step",
             "Modifica un paso concreto de una rutina: añadir, eliminar, mover o reemplazar. Úsala solo cuando el usuario pida explícitamente modificar un paso.",
             """
-            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"action":{"type":"string","enum":["add","remove","move","replace"]},"index":{"type":"integer","description":"Índice del paso empezando en cero."},"new_index":{"type":"integer","description":"Nueva posición empezando en cero para mover un paso."},"step":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta."}},"required":["tool","arguments"],"additionalProperties":false}},"required":["name","action"],"additionalProperties":false}
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre de la rutina."},"action":{"type":"string","enum":["add","remove","move","replace"]},"index":{"type":"integer","description":"Índice del paso empezando en cero."},"new_index":{"type":"integer","description":"Nueva posición empezando en cero para mover un paso."},"step":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action","clipboard"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta."}},"required":["tool","arguments"],"additionalProperties":false}},"required":["name","action"],"additionalProperties":false}
             """),
         FunctionTool(
             "inspect_routine",
@@ -323,7 +323,7 @@ public sealed class ConversationAiService
             "edit_routine",
             "Edita una rutina existente. Solo úsala cuando el usuario pida explícitamente modificarla.",
             """
-            {"type":"object","properties":{"name":{"type":"string","description":"Nombre actual de la rutina."},"new_name":{"type":"string","description":"Nuevo nombre opcional."},"description":{"type":"string","description":"Nueva descripción opcional."},"steps":{"type":"array","description":"Nueva lista completa de pasos, en el orden deseado.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta."}},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name"],"additionalProperties":false}
+            {"type":"object","properties":{"name":{"type":"string","description":"Nombre actual de la rutina."},"new_name":{"type":"string","description":"Nuevo nombre opcional."},"description":{"type":"string","description":"Nueva descripción opcional."},"steps":{"type":"array","description":"Nueva lista completa de pasos, en el orden deseado.","items":{"type":"object","properties":{"tool":{"type":"string","enum":["open_application","close_application","control_window","system_action","search_web","open_folder","type_text","find_file","open_file","file_action","clipboard"]},"arguments":{"type":"string","description":"Argumentos JSON de la herramienta."}},"required":["tool","arguments"],"additionalProperties":false}}},"required":["name"],"additionalProperties":false}
             """),
         FunctionTool(
             "list_routines",
@@ -358,6 +358,12 @@ public sealed class ConversationAiService
         FunctionTool(
             "get_system_info",
             "Consulta información básica del equipo, como Windows, procesadores, memoria y espacio libre del disco del sistema.",
+            """
+            {"type":"object","properties":{},"additionalProperties":false}
+            """),
+        FunctionTool(
+            "list_running_apps",
+            "Enumera las aplicaciones que tienen una ventana principal activa, incluyendo título, proceso y PID. Úsala para identificar aplicaciones abiertas o varias instancias antes de actuar sobre una ventana.",
             """
             {"type":"object","properties":{},"additionalProperties":false}
             """),
