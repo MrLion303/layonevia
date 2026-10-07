@@ -10,6 +10,42 @@ public sealed class ConversationContext
     public string? LastFolder { get; private set; }
     public PendingFileAction? PendingAction { get; private set; }
     public FileActionRecord? LastAction { get; private set; }
+    public TaskState? CurrentTask { get; private set; }
+
+    public void StartTask(string goal)
+    {
+        CurrentTask = new TaskState(goal);
+    }
+
+    public void SetTaskStep(string step, int stepNumber, int totalSteps)
+    {
+        if (CurrentTask is null)
+            return;
+
+        CurrentTask.CurrentStep = step;
+        CurrentTask.StepNumber = stepNumber;
+        CurrentTask.TotalSteps = totalSteps;
+        CurrentTask.Status = TaskStatus.Running;
+    }
+
+    public void CompleteTask()
+    {
+        if (CurrentTask is null)
+            return;
+
+        CurrentTask.Status = TaskStatus.Completed;
+        CurrentTask.CurrentStep = null;
+    }
+
+    public void FailTask(string reason)
+    {
+        if (CurrentTask is null)
+            return;
+
+        CurrentTask.Status = TaskStatus.Failed;
+        CurrentTask.LastError = reason;
+    }
+
     public string? LastToolAction { get; private set; }
     public string? LastToolResult { get; private set; }
 
@@ -113,6 +149,8 @@ public sealed class ConversationContext
     {
         LastToolAction = action;
         LastToolResult = result;
+        if (CurrentTask is not null && !string.IsNullOrWhiteSpace(result))
+            CurrentTask.LastResult = result;
     }
 
     public PendingFileAction? TakePendingAction()
@@ -130,6 +168,7 @@ public sealed class ConversationContext
         PendingAction = null;
         LastAction = null;
         LastToolAction = null;
+        CurrentTask = null;
         LastToolResult = null;
         _lastResults.Clear();
     }
@@ -156,3 +195,23 @@ public enum FileActionType
 }
 
 public sealed record FileActionRecord(FileActionType Action, string SourcePath, string? DestinationPath, string? NewName);
+
+public sealed class TaskState
+{
+    public TaskState(string goal) => Goal = goal;
+
+    public string Goal { get; }
+    public string? CurrentStep { get; set; }
+    public int StepNumber { get; set; }
+    public int TotalSteps { get; set; }
+    public TaskStatus Status { get; set; } = TaskStatus.Running;
+    public string? LastResult { get; set; }
+    public string? LastError { get; set; }
+}
+
+public enum TaskStatus
+{
+    Running,
+    Completed,
+    Failed
+}
