@@ -13,6 +13,55 @@ public sealed class ConversationContext
     public FileActionRecord? LastAction { get; private set; }
     public TaskState? CurrentTask { get; private set; }
     public IReadOnlyList<ExecutedToolStep> RecentToolSequence => _recentToolSequence;
+    public DateTimeOffset LastContextUpdate { get; private set; } = DateTimeOffset.UtcNow;
+
+    public string BuildSummary()
+    {
+        var lines = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(ActiveWindowTitle))
+            lines.Add($"Ventana activa: {ActiveWindowTitle}");
+
+        if (!string.IsNullOrWhiteSpace(ActiveProcessName))
+            lines.Add($"Proceso activo: {ActiveProcessName}");
+
+        if (!string.IsNullOrWhiteSpace(ActiveApplication))
+            lines.Add($"Aplicación recordada: {ActiveApplication}");
+
+        if (!string.IsNullOrWhiteSpace(CurrentPath))
+            lines.Add($"Ruta actual: {CurrentPath}");
+
+        if (!string.IsNullOrWhiteSpace(LastFile))
+            lines.Add($"Último archivo: {LastFile}");
+
+        if (!string.IsNullOrWhiteSpace(LastFolder))
+            lines.Add($"Última carpeta: {LastFolder}");
+
+        if (CurrentTask is not null)
+        {
+            var step = CurrentTask.TotalSteps > 0
+                ? $"paso {CurrentTask.StepNumber}/{CurrentTask.TotalSteps}"
+                : "sin pasos definidos";
+            lines.Add($"Tarea: {CurrentTask.Status}, {step}, objetivo: {CurrentTask.Goal}");
+
+            if (!string.IsNullOrWhiteSpace(CurrentTask.CurrentStep))
+                lines.Add($"Paso actual: {CurrentTask.CurrentStep}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(LastToolAction))
+            lines.Add($"Última acción: {LastToolAction}");
+
+        if (_recentToolSequence.Count > 0)
+        {
+            lines.Add("Secuencia reciente:");
+            foreach (var item in _recentToolSequence.TakeLast(8))
+                lines.Add($"- {item.ToolName}: {item.Action}");
+        }
+
+        return lines.Count == 0
+            ? "No hay contexto de Windows o acciones recientes disponibles."
+            : string.Join(Environment.NewLine, lines);
+    }
 
     public void StartTask(string goal)
     {
@@ -94,11 +143,13 @@ public sealed class ConversationContext
     {
         ActiveWindowTitle = string.IsNullOrWhiteSpace(title) ? null : title;
         ActiveProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName;
+        LastContextUpdate = DateTimeOffset.UtcNow;
     }
 
     public void SetActiveApplication(string application)
     {
         ActiveApplication = string.IsNullOrWhiteSpace(application) ? null : application;
+        LastContextUpdate = DateTimeOffset.UtcNow;
     }
 
     public void SetOpenedFile(string path)
