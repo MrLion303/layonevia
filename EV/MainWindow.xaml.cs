@@ -17,6 +17,8 @@ public partial class MainWindow : Window
     private HomePage? _home;
     private AudioPage? _audio;
     private MemoryPage? _memory;
+    private ToolsPage? _tools;
+    private RoutinesPage? _routines;
     private SettingsPage? _settings;
 
     public MainWindow()
@@ -80,6 +82,8 @@ public partial class MainWindow : Window
         _voiceRecognition.Restart();
     }
     private MemoryPage GetMemory() => _memory ??= new MemoryPage();
+    private ToolsPage GetTools() => _tools ??= new ToolsPage();
+    private RoutinesPage GetRoutines() => _routines ??= new RoutinesPage();
     private SettingsPage GetSettings() => _settings ??= new SettingsPage();
 
     private void ShowPage(string title, object page)
@@ -170,6 +174,8 @@ public partial class MainWindow : Window
     private void Home_Click(object sender, RoutedEventArgs e) => ShowPage("Inicio", GetHome());
     private void Audio_Click(object sender, RoutedEventArgs e) => ShowPage("Audio", GetAudio());
     private void Memory_Click(object sender, RoutedEventArgs e) => ShowPage("Memoria", GetMemory());
+    private void Tools_Click(object sender, RoutedEventArgs e) => ShowPage("Aplicaciones y archivos", GetTools());
+    private void Routines_Click(object sender, RoutedEventArgs e) => ShowPage("Rutinas", GetRoutines());
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowPage("Configuración", GetSettings());
 
     protected override void OnClosed(EventArgs e)
