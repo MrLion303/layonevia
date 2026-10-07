@@ -21,6 +21,8 @@ public sealed class VoiceRecognitionService : IDisposable
     private WaveInEvent? _capture;
     private bool _disposed;
     private bool _listening;
+    private bool _wakeArmed;
+    private DateTime _wakeArmedUntil;
     private readonly object _sync = new();
 
     public event EventHandler<VoiceCommandEventArgs>? CommandRecognized;
@@ -71,11 +73,13 @@ public sealed class VoiceRecognitionService : IDisposable
             _capture.StartRecording();
 
             _listening = true;
+            _wakeArmed = false;
+            _wakeArmedUntil = DateTime.MinValue;
+
+            var activeDevice = WaveInEvent.GetCapabilities(deviceNumber).ProductName;
             StatusChanged?.Invoke(
                 this,
-                deviceNumber >= 0
-                    ? $"Escuchando «Oye ibi» · reconocimiento local"
-                    : "Escuchando «Oye ibi» · micrófono automático");
+                $"Escuchando «Oye ibi» · {activeDevice}");
         }
         catch (Exception ex)
         {
@@ -106,8 +110,16 @@ public sealed class VoiceRecognitionService : IDisposable
             if (recognizer is null)
                 return;
 
-            if (!recognizer.AcceptWaveform(e.Buffer, e.BytesRecorded))
+            var isFinal = recognizer.AcceptWaveform(e.Buffer, e.BytesRecorded);
+
+            if (!isFinal)
+            {
+                var partial = ExtractPartialText(recognizer.PartialResult());
+                if (!string.IsNullOrWhiteSpace(partial))
+                    ProcessRecognizedText(partial, true);
+
                 return;
+            }
 
             var json = recognizer.Result();
             var text = ExtractText(json);
@@ -115,7 +127,7 @@ public sealed class VoiceRecognitionService : IDisposable
             if (string.IsNullOrWhiteSpace(text))
                 return;
 
-            ProcessRecognizedText(text);
+            ProcessRecognizedText(text, false);
         }
         catch (Exception ex)
         {
@@ -123,29 +135,115 @@ public sealed class VoiceRecognitionService : IDisposable
         }
     }
 
-    private void ProcessRecognizedText(string text)
+    private void ProcessRecognizedText(string text, bool partial)
     {
         var normalized = Normalize(text);
+        if (string.IsNullOrWhiteSpace(normalized))
+            return;
+
         var tokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        for (var i = 0; i < tokens.Length - 1; i++)
+        var wakeIndex = FindWakePhrase(tokens);
+        if (wakeIndex >= 0)
         {
-            if (!string.Equals(tokens[i], "oye", StringComparison.Ordinal) ||
-                !string.Equals(tokens[i + 1], "ibi", StringComparison.Ordinal))
-            {
-                continue;
-            }
+            _wakeArmed = true;
+            _wakeArmedUntil = DateTime.UtcNow.AddSeconds(6);
 
-            var command = i + 2 < tokens.Length
-                ? string.Join(' ', tokens[(i + 2)..])
+            var command = wakeIndex + 2 < tokens.Length
+                ? string.Join(' ', tokens[(wakeIndex + 2)..])
                 : string.Empty;
+
+            if (partial)
+            {
+                // Si ya hay una orden completa en el resultado parcial, podemos ejecutarla
+                // sin esperar a que Vosk termine de cerrar la frase.
+                if (string.IsNullOrWhiteSpace(command))
+                    return;
+            }
 
             CommandRecognized?.Invoke(
                 this,
                 new VoiceCommandEventArgs(text, command, 1.0f));
 
+            _wakeArmed = false;
             return;
         }
+
+        if (!partial &&
+            _wakeArmed &&
+            DateTime.UtcNow <= _wakeArmedUntil)
+        {
+            _wakeArmed = false;
+
+            CommandRecognized?.Invoke(
+                this,
+                new VoiceCommandEventArgs(text, text, 1.0f));
+        }
+
+        if (!partial)
+        {
+            App.LogException(
+                new InvalidOperationException($"Reconocimiento de voz: «{text}»"),
+                "Texto reconocido sin palabra de activación");
+        }
+    }
+
+    private static int FindWakePhrase(string[] tokens)
+    {
+        for (var i = 0; i < tokens.Length - 1; i++)
+        {
+            if (IsCloseToOye(tokens[i]) && IsCloseToIbi(tokens[i + 1]))
+                return i;
+
+            if (i + 2 < tokens.Length &&
+                IsCloseToOye(tokens[i]) &&
+                tokens[i + 1] is "y" or "e" &&
+                IsCloseToIbi(tokens[i + 2]))
+                return i;
+        }
+
+        return -1;
+    }
+
+    private static bool IsCloseToOye(string token)
+    {
+        return token is "oye" or "oi" or "oy" or "hoy" or "oie" ||
+               LevenshteinDistance(token, "oye") <= 1;
+    }
+
+    private static bool IsCloseToIbi(string token)
+    {
+        return token is "ibi" or "ivi" or "ybi" or "yvi" or "vibi" ||
+               LevenshteinDistance(token, "ibi") <= 1;
+    }
+
+    private static int LevenshteinDistance(string a, string b)
+    {
+        if (a.Length == 0) return b.Length;
+        if (b.Length == 0) return a.Length;
+
+        var previous = new int[b.Length + 1];
+        var current = new int[b.Length + 1];
+
+        for (var j = 0; j <= b.Length; j++)
+            previous[j] = j;
+
+        for (var i = 1; i <= a.Length; i++)
+        {
+            current[0] = i;
+
+            for (var j = 1; j <= b.Length; j++)
+            {
+                var cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                current[j] = Math.Min(
+                    Math.Min(current[j - 1] + 1, previous[j] + 1),
+                    previous[j - 1] + cost);
+            }
+
+            (previous, current) = (current, previous);
+        }
+
+        return previous[b.Length];
     }
 
     private int FindWaveInDeviceNumber()
@@ -214,6 +312,22 @@ public sealed class VoiceRecognitionService : IDisposable
             using var document = JsonDocument.Parse(json);
 
             if (document.RootElement.TryGetProperty("text", out var text))
+                return text.GetString()?.Trim() ?? string.Empty;
+        }
+        catch
+        {
+        }
+
+        return string.Empty;
+    }
+
+    private static string ExtractPartialText(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+
+            if (document.RootElement.TryGetProperty("partial", out var text))
                 return text.GetString()?.Trim() ?? string.Empty;
         }
         catch
