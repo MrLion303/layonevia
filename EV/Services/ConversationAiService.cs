@@ -365,7 +365,7 @@ public sealed class ConversationAiService
             "clipboard",
             "Lee o escribe texto en el portapapeles de Windows. Úsala para reutilizar texto que el usuario acaba de copiar o para preparar texto antes de pegarlo.",
             """
-            {"type":"object","properties":{"action":{"type":"string","enum":["leer","escribir"]},"text":{"type":"string","description":"Texto que se copiará al portapapeles cuando la acción sea escribir."}},"required":["action","text"],"additionalProperties":false}
+            {"type":"object","properties":{"action":{"type":"string","enum":["leer","escribir"]},"text":{"type":"string","description":"Texto que se copiará al portapapeles cuando la acción sea escribir."}},"required":["action"],"additionalProperties":false}
             """),
         FunctionTool(
             "get_preferences",
