@@ -9,6 +9,7 @@
      <CheckBox x:Name="StartWithWindowsBox" Content="Iniciar EV con Windows" Foreground="{StaticResource TextBrush}" Margin="0,18,0,8" Checked="GeneralSetting_Changed" Unchecked="GeneralSetting_Changed"/>
      <CheckBox x:Name="VoiceResponseBox" Content="Responder por voz" Foreground="{StaticResource TextBrush}" IsChecked="True" Margin="0,8" Checked="GeneralSetting_Changed" Unchecked="GeneralSetting_Changed"/>
      <CheckBox x:Name="WakeWordBox" Content="Escuchar la palabra de activación" Foreground="{StaticResource TextBrush}" IsChecked="True" Margin="0,8" Checked="GeneralSetting_Changed" Unchecked="GeneralSetting_Changed"/>
+     <CheckBox x:Name="MinimizeToTrayBox" Content="Mantener EV en segundo plano al cerrar o minimizar" Foreground="{StaticResource TextBrush}" IsChecked="True" Margin="0,8" Checked="GeneralSetting_Changed" Unchecked="GeneralSetting_Changed"/>
      <TextBlock Text="Palabra de activación" FontWeight="SemiBold" Margin="0,22,0,6"/>
      <TextBox Text="Oye ibi" MaxWidth="300" IsReadOnly="True"/>
     </StackPanel>

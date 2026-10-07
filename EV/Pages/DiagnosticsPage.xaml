@@ -1,0 +1,64 @@
+<UserControl x:Class="EV.Pages.DiagnosticsPage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <StackPanel>
+   <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="24" Margin="0,0,0,16">
+    <StackPanel>
+     <TextBlock Text="Diagnóstico de EV" FontSize="20" FontWeight="SemiBold"/>
+     <TextBlock Text="Comprueba rápidamente voz, modelo local, inteligencia, memoria y configuración de Windows." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,18"/>
+     <WrapPanel>
+      <Button Content="Actualizar diagnóstico" Click="Refresh_Click" Padding="16,8"/>
+      <Button Content="Abrir carpeta de EV" Click="OpenFolder_Click" Padding="16,8" Margin="8,4,0,4"/>
+     </WrapPanel>
+    </StackPanel>
+   </Border>
+
+   <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="24">
+    <StackPanel>
+     <TextBlock Text="Estado" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16"/>
+     <Grid Margin="0,4">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="Aplicación" FontWeight="SemiBold"/>
+      <TextBlock x:Name="AppStatus" Grid.Column="1" TextWrapping="Wrap"/>
+     </Grid>
+     <Grid Margin="0,10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="Micrófonos" FontWeight="SemiBold"/>
+      <TextBlock x:Name="InputStatus" Grid.Column="1" TextWrapping="Wrap"/>
+     </Grid>
+     <Grid Margin="0,10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="Salidas de audio" FontWeight="SemiBold"/>
+      <TextBlock x:Name="OutputStatus" Grid.Column="1" TextWrapping="Wrap"/>
+     </Grid>
+     <Grid Margin="0,10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="Modelo de voz" FontWeight="SemiBold"/>
+      <TextBlock x:Name="VoskStatus" Grid.Column="1" TextWrapping="Wrap"/>
+     </Grid>
+     <Grid Margin="0,10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="Inteligencia" FontWeight="SemiBold"/>
+      <TextBlock x:Name="AiStatus" Grid.Column="1" TextWrapping="Wrap"/>
+     </Grid>
+     <Grid Margin="0,10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="Memoria" FontWeight="SemiBold"/>
+      <TextBlock x:Name="MemoryStatus" Grid.Column="1" TextWrapping="Wrap"/>
+     </Grid>
+     <Grid Margin="0,10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="Inicio con Windows" FontWeight="SemiBold"/>
+      <TextBlock x:Name="StartupStatus" Grid.Column="1" TextWrapping="Wrap"/>
+     </Grid>
+     <Grid Margin="0,10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="Registro de errores" FontWeight="SemiBold"/>
+      <TextBlock x:Name="LogStatus" Grid.Column="1" TextWrapping="Wrap"/>
+     </Grid>
+    </StackPanel>
+   </Border>
+  </StackPanel>
+ </ScrollViewer>
+</UserControl>

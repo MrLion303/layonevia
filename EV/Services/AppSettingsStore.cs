@@ -9,6 +9,7 @@ public sealed class AppSettings
     public bool StartWithWindows { get; set; }
     public bool VoiceResponseEnabled { get; set; } = true;
     public bool WakeWordEnabled { get; set; } = true;
+    public bool MinimizeToTray { get; set; } = true;
 }
 
 public sealed class AppSettingsStore

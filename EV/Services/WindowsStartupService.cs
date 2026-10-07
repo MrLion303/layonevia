@@ -24,7 +24,8 @@ public sealed class WindowsStartupService
     public void SetEnabled(bool enabled)
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey, true)
-            ?? Registry.CurrentUser.CreateSubKey(RunKey);
+            ?? Registry.CurrentUser.CreateSubKey(RunKey)
+            ?? throw new InvalidOperationException("No se pudo acceder al registro de inicio de Windows.");
 
         if (enabled)
         {
@@ -32,7 +33,7 @@ public sealed class WindowsStartupService
             if (string.IsNullOrWhiteSpace(executable))
                 throw new InvalidOperationException("No se pudo localizar el ejecutable de EV.");
 
-            key.SetValue(ValueName, $"\"{executable}\"");
+            key.SetValue(ValueName, $""{executable}" --background");
         }
         else
         {

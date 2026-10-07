@@ -28,6 +28,7 @@ public partial class SettingsPage : UserControl
             StartWithWindowsBox.IsChecked = settings.StartWithWindows;
             VoiceResponseBox.IsChecked = settings.VoiceResponseEnabled;
             WakeWordBox.IsChecked = settings.WakeWordEnabled;
+            MinimizeToTrayBox.IsChecked = settings.MinimizeToTray;
         }
         finally
         {
@@ -46,6 +47,7 @@ public partial class SettingsPage : UserControl
             settings.StartWithWindows = StartWithWindowsBox.IsChecked == true;
             settings.VoiceResponseEnabled = VoiceResponseBox.IsChecked == true;
             settings.WakeWordEnabled = WakeWordBox.IsChecked == true;
+            settings.MinimizeToTray = MinimizeToTrayBox.IsChecked == true;
             _appSettings.Save(settings);
             _startup.SetEnabled(settings.StartWithWindows);
             AiStatus.Text = "Ajustes generales guardados.";

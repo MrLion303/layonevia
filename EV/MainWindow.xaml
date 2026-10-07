@@ -2,63 +2,89 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:EV"
+        xmlns:tb="clr-namespace:H.NotifyIcon;assembly=H.NotifyIcon.Wpf"
         Title="EV" Width="980" Height="640" MinWidth="860" MinHeight="560"
         Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        StateChanged="Window_StateChanged"
+        Closing="Window_Closing"
+        Loaded="Window_Loaded">
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="210"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+        <tb:TaskbarIcon x:Name="TrayIcon"
+                        ToolTipText="EV · asistente «ibi»"
+                        TrayMouseDoubleClick="TrayIcon_TrayMouseDoubleClick">
+            <tb:TaskbarIcon.IconSource>
+                <tb:GeneratedIconSource Text="EV"
+                                        Foreground="{StaticResource AccentBrush}"
+                                        FontSize="28"
+                                        FontWeight="Bold"/>
+            </tb:TaskbarIcon.IconSource>
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Abrir EV" Click="TrayOpen_Click"/>
+                    <MenuItem Header="Escuchar «Oye ibi»" Click="TrayWake_Click"/>
+                    <Separator/>
+                    <MenuItem Header="Salir de EV" Click="TrayExit_Click"/>
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+        </tb:TaskbarIcon>
 
-        <Border Grid.Column="0" Background="#10161E" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
-            <DockPanel Margin="18">
-                <StackPanel DockPanel.Dock="Bottom">
-                    <TextBlock Text="EV v0.1" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="4,12,4,0"/>
-                    <TextBlock Text="Asistente de escritorio" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="4,2,4,0"/>
-                </StackPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="210"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-                <StackPanel>
-                    <StackPanel Margin="4,8,4,28">
-                        <TextBlock Text="EV" FontSize="34" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
-                        <TextBlock Text="Tu asistente · «ibi»" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
+            <Border Grid.Column="0" Background="#10161E" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+                <DockPanel Margin="18">
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <TextBlock Text="EV v0.1" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="4,12,4,0"/>
+                        <TextBlock Text="Asistente de escritorio" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="4,2,4,0"/>
                     </StackPanel>
 
-                    <Button Content="Inicio" Click="Home_Click"/>
-                    <Button Content="Audio" Click="Audio_Click"/>
-                    <Button Content="Memoria" Click="Memory_Click"/>
-                    <Button Content="Aplicaciones y archivos" Click="Tools_Click"/>
-                    <Button Content="Rutinas" Click="Routines_Click"/>
-                    <Button Content="Configuración" Click="Settings_Click"/>
-                </StackPanel>
-            </DockPanel>
-        </Border>
-
-        <Grid Grid.Column="1" Margin="34">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <Grid Grid.Row="0" Margin="0,0,0,24">
-                <TextBlock x:Name="PageTitle" Text="Inicio" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center"/>
-
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Grid Width="76" Height="76" Margin="0,0,16,0">
-                        <local:VoiceWaveVisualizer x:Name="VoiceWave" Width="76" Height="76"/>
-                    </Grid>
-
-                    <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse x:Name="VoiceStatusDot" Width="10" Height="10" Fill="{StaticResource AccentBrush}" Margin="0,0,8,0"/>
-                            <TextBlock x:Name="VoiceStatusText" Text="Iniciando voz..." Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                    <StackPanel>
+                        <StackPanel Margin="4,8,4,28">
+                            <TextBlock Text="EV" FontSize="34" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
+                            <TextBlock Text="Tu asistente · «ibi»" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
                         </StackPanel>
-                        <TextBlock x:Name="VoiceAudioText" Text="Micrófono: esperando audio" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="18,4,0,0"/>
-                    </StackPanel>
-                </StackPanel>
-            </Grid>
 
-            <ContentControl x:Name="PageContent" Grid.Row="1"/>
+                        <Button Content="Inicio" Click="Home_Click"/>
+                        <Button Content="Audio" Click="Audio_Click"/>
+                        <Button Content="Memoria" Click="Memory_Click"/>
+                        <Button Content="Aplicaciones y archivos" Click="Tools_Click"/>
+                        <Button Content="Rutinas" Click="Routines_Click"/>
+                        <Button Content="Diagnóstico" Click="Diagnostics_Click"/>
+                        <Button Content="Configuración" Click="Settings_Click"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Grid Grid.Column="1" Margin="34">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,24">
+                    <TextBlock x:Name="PageTitle" Text="Inicio" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Grid Width="76" Height="76" Margin="0,0,16,0">
+                            <local:VoiceWaveVisualizer x:Name="VoiceWave" Width="76" Height="76"/>
+                        </Grid>
+
+                        <StackPanel VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="VoiceStatusDot" Width="10" Height="10" Fill="{StaticResource AccentBrush}" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="VoiceStatusText" Text="Iniciando voz..." Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <TextBlock x:Name="VoiceAudioText" Text="Micrófono: esperando audio" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="18,4,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+
+                <ContentControl x:Name="PageContent" Grid.Row="1"/>
+            </Grid>
         </Grid>
     </Grid>
 </Window>
