@@ -28,7 +28,20 @@ public partial class MainWindow : Window
     }
 
     private HomePage GetHome() => _home ??= new HomePage();
-    private AudioPage GetAudio() => _audio ??= new AudioPage();
+    private AudioPage GetAudio()
+    {
+        if (_audio is not null)
+            return _audio;
+
+        _audio = new AudioPage();
+        _audio.InputDeviceChanged += Audio_InputDeviceChanged;
+        return _audio;
+    }
+
+    private void Audio_InputDeviceChanged(object? sender, EventArgs e)
+    {
+        _voiceRecognition.Restart();
+    }
     private MemoryPage GetMemory() => _memory ??= new MemoryPage();
     private SettingsPage GetSettings() => _settings ??= new SettingsPage();
 
@@ -105,7 +118,12 @@ public partial class MainWindow : Window
     {
         _voiceRecognition.Dispose();
         _voiceOutput.Dispose();
-        _audio?.Dispose();
+        if (_audio is not null)
+        {
+            _audio.InputDeviceChanged -= Audio_InputDeviceChanged;
+            _audio.Dispose();
+        }
+
         base.OnClosed(e);
     }
 }
