@@ -2,67 +2,69 @@ namespace EV.Services;
 
 public sealed class ConversationContext
 {
-    public string? CurrentLocation { get; private set; }
-    public string? CurrentFolder { get; private set; }
+    public string? CurrentPath { get; private set; }
     public string? LastFile { get; private set; }
     public string? LastFolder { get; private set; }
-
-    public void Update(NaturalIntent intent)
-    {
-        if (!string.IsNullOrWhiteSpace(intent.Location))
-            CurrentLocation = intent.Location;
-
-        if (!string.IsNullOrWhiteSpace(intent.FolderName))
-        {
-            CurrentFolder = intent.FolderName;
-            LastFolder = intent.FolderName;
-        }
-
-        if (!string.IsNullOrWhiteSpace(intent.FileName))
-            LastFile = intent.FileName;
-    }
 
     public void SetOpenedFile(string path)
     {
         LastFile = path;
-    }
-
-    public string? ResolveFileReference(string text)
-    {
-        var normalized = text.Trim().ToLowerInvariant();
-        if (normalized.Contains("ese archivo") || normalized.Contains("ese documento") ||
-            normalized.Contains("ese fichero"))
-            return LastFile;
-
-        return null;
+        if (File.Exists(path))
+            CurrentPath = Path.GetDirectoryName(path);
     }
 
     public void SetOpenedFolder(string path)
     {
         LastFolder = path;
-        CurrentFolder = path;
+        CurrentPath = path;
     }
 
-    public string? ResolvePronoun(string text)
+    public void SetCurrentPath(string path)
     {
-        var normalized = text.Trim().ToLowerInvariant();
+        if (Directory.Exists(path))
+            CurrentPath = path;
+    }
 
-        if (normalized.Contains("ese archivo") || normalized.Contains("ese documento") ||
-            normalized.Contains("ese fichero") || normalized.Contains("ese"))
+    public string? ResolveFileReference(string text)
+    {
+        var normalized = Normalize(text);
+
+        if (normalized.Contains("ese archivo") ||
+            normalized.Contains("ese documento") ||
+            normalized.Contains("ese fichero") ||
+            normalized is "abre ese" or "abrir ese" or "abrelo" or "abrirlo")
             return LastFile;
 
-        if (normalized.Contains("esa carpeta") || normalized.Contains("esa") ||
-            normalized.Contains("esa ubicacion") || normalized.Contains("esa ubicación"))
-            return LastFolder ?? CurrentLocation;
+        return null;
+    }
+
+    public string? ResolveFolderReference(string text)
+    {
+        var normalized = Normalize(text);
+
+        if (normalized.Contains("esa carpeta") ||
+            normalized.Contains("esa ubicacion") ||
+            normalized.Contains("esa ubicación") ||
+            normalized is "vuelve ahi" or "volver ahi")
+            return LastFolder ?? CurrentPath;
 
         return null;
     }
 
     public void Clear()
     {
-        CurrentLocation = null;
-        CurrentFolder = null;
+        CurrentPath = null;
         LastFile = null;
         LastFolder = null;
+    }
+
+    private static string Normalize(string value)
+    {
+        return new string(value
+            .Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .ToArray())
+            .ToLowerInvariant()
+            .Trim();
     }
 }
