@@ -21,6 +21,13 @@ public sealed class CommandEngine
         if (command.Length == 0)
             return CommandResult.Success("Sí, señor.");
 
+        var confirmation = TryHandlePendingConfirmation(command);
+        if (confirmation is not null)
+            return confirmation;
+
+        if (TryGetFileActionCommand(command, out var fileAction))
+            return ExecuteFileAction(fileAction);
+
         if (TryGetMemoryRequest(command, out var memory))
         {
             var item = new MemoryItem { Text = memory };
@@ -137,6 +144,238 @@ public sealed class CommandEngine
 
         return CommandResult.Failure(
             $"Todavía no tengo una acción para «{command}». Podemos enseñarme esa orden después.");
+    }
+
+    private CommandResult? TryHandlePendingConfirmation(string text)
+    {
+        if (_context.PendingAction is null)
+            return null;
+
+        var normalized = Normalize(text);
+
+        if (ContainsAny(normalized, "si", "sí", "confirmo", "hazlo", "adelante", "de acuerdo"))
+        {
+            var action = _context.TakePendingAction();
+            if (action is null)
+                return null;
+
+            return ExecuteConfirmedFileAction(action);
+        }
+
+        if (ContainsAny(normalized, "no", "cancela", "cancelar", "no lo hagas"))
+        {
+            _context.TakePendingAction();
+            return CommandResult.Success("De acuerdo, no haré ese cambio.");
+        }
+
+        return CommandResult.Failure("Tengo una operación pendiente. Responde «sí» para confirmarla o «no» para cancelarla.");
+    }
+
+    private bool TryGetFileActionCommand(string text, out FileActionCommand command)
+    {
+        command = default;
+        var normalized = Normalize(text);
+        var source = ResolveContextFile(text);
+
+        if (source is null)
+            return false;
+
+        if (ContainsAny(normalized, "mueve ", "mover ", "muevelo", "muévelo", "traslada ", "trasladar "))
+        {
+            var destination = ExtractDestination(normalized);
+            if (destination is null)
+                return false;
+
+            command = new FileActionCommand(FileActionType.Move, source, destination, null);
+            return true;
+        }
+
+        if (ContainsAny(normalized, "copia ", "copiar ", "copialo", "cópialo"))
+        {
+            var destination = ExtractDestination(normalized);
+            if (destination is null)
+                return false;
+
+            command = new FileActionCommand(FileActionType.Copy, source, destination, null);
+            return true;
+        }
+
+        if (ContainsAny(normalized, "renombra ", "renombrar ", "cambia el nombre ", "cambiar el nombre "))
+        {
+            var newName = ExtractNewName(normalized);
+            if (string.IsNullOrWhiteSpace(newName))
+                return false;
+
+            command = new FileActionCommand(FileActionType.Rename, source, null, newName);
+            return true;
+        }
+
+        if (ContainsAny(normalized, "borra ", "borrar ", "elimina ", "eliminar ", "eliminalo", "elimínalo", "bórralo"))
+        {
+            command = new FileActionCommand(FileActionType.Delete, source, null, null);
+            return true;
+        }
+
+        return false;
+    }
+
+    private string? ResolveContextFile(string text)
+    {
+        var direct = _context.ResolveResultReference(text) ?? _context.ResolveFileReference(text);
+        if (direct is not null && File.Exists(direct))
+            return direct;
+
+        if (_context.LastFile is not null &&
+            ContainsAny(Normalize(text), "ese ", "el archivo", "ese archivo", "el primero", "el segundo"))
+            return _context.LastFile;
+
+        return null;
+    }
+
+    private static string? ExtractDestination(string normalized)
+    {
+        foreach (var prefix in new[]
+        {
+            " al escritorio", " a escritorio",
+            " a descargas", " a la carpeta descargas",
+            " a documentos", " a la carpeta documentos",
+            " a musica", " a la carpeta musica",
+            " a imagenes", " a la carpeta imagenes",
+            " a videos", " a la carpeta videos"
+        })
+        {
+            if (!normalized.EndsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            return prefix switch
+            {
+                " al escritorio" or " a escritorio" => Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                " a descargas" or " a la carpeta descargas" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
+                " a documentos" or " a la carpeta documentos" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                " a musica" or " a la carpeta musica" => Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
+                " a imagenes" or " a la carpeta imagenes" => Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+                " a videos" or " a la carpeta videos" => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
+                _ => null
+            };
+        }
+
+        return null;
+    }
+
+    private static string? ExtractNewName(string normalized)
+    {
+        var patterns = new[]
+        {
+            @"(?:renombra|renombrar)\s+(?:el\s+)?(?:archivo\s+)?(?:como|a)\s+(?<name>.+)$",
+            @"(?:cambia\s+el\s+nombre|cambiar\s+el\s+nombre)\s+(?:de\s+.+?\s+)?(?:a|por)\s+(?<name>.+)$"
+        };
+
+        foreach (var pattern in patterns)
+        {
+            var match = Regex.Match(normalized, pattern, RegexOptions.IgnoreCase);
+            if (match.Success)
+                return match.Groups["name"].Value.Trim(' ', '.', ',', ';', ':', '"', '\'');
+        }
+
+        return null;
+    }
+
+    private CommandResult ExecuteFileAction(FileActionCommand command)
+    {
+        try
+        {
+            if (!File.Exists(command.SourcePath))
+                return CommandResult.Failure("Ese archivo ya no existe.");
+
+            if (command.Action == FileActionType.Delete)
+            {
+                _context.SetPendingAction(new PendingFileAction(
+                    FileActionType.Delete, command.SourcePath, null, null));
+
+                return CommandResult.Success(
+                    $"¿Confirmas que elimine «{Path.GetFileName(command.SourcePath)}»? Responde «sí» o «no».");
+            }
+
+            if (command.Action == FileActionType.Rename)
+            {
+                var destination = Path.Combine(
+                    Path.GetDirectoryName(command.SourcePath)!,
+                    command.NewName!);
+
+                if (File.Exists(destination))
+                    return CommandResult.Failure($"Ya existe un archivo llamado «{command.NewName}».");
+
+                File.Move(command.SourcePath, destination);
+                _context.SetOpenedFile(destination);
+                _context.SetResults([destination]);
+
+                return CommandResult.Success(
+                    $"Listo, renombré el archivo a «{Path.GetFileName(destination)}».");
+            }
+
+            if (command.DestinationPath is null || !Directory.Exists(command.DestinationPath))
+                return CommandResult.Failure("No encontré la carpeta de destino.");
+
+            var destinationFile = Path.Combine(
+                command.DestinationPath,
+                Path.GetFileName(command.SourcePath));
+
+            if (File.Exists(destinationFile))
+                return CommandResult.Failure(
+                    $"Ya existe «{Path.GetFileName(destinationFile)}» en la carpeta de destino.");
+
+            if (command.Action == FileActionType.Move)
+                File.Move(command.SourcePath, destinationFile);
+            else
+                File.Copy(command.SourcePath, destinationFile);
+
+            _context.SetOpenedFile(destinationFile);
+            _context.SetResults([destinationFile]);
+
+            return CommandResult.Success(
+                command.Action == FileActionType.Move
+                    ? $"Moví «{Path.GetFileName(destinationFile)}» a «{Path.GetFileName(command.DestinationPath)}»."
+                    : $"Copié «{Path.GetFileName(destinationFile)}» a «{Path.GetFileName(command.DestinationPath)}».");
+        }
+        catch (IOException ex)
+        {
+            App.LogException(ex, "Error de E/S al manipular un archivo");
+            return CommandResult.Failure("Windows no pudo completar esa operación con el archivo.");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            App.LogException(ex, "Acceso denegado al manipular un archivo");
+            return CommandResult.Failure("Windows no me permite modificar ese archivo.");
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo manipular un archivo");
+            return CommandResult.Failure("No pude completar esa operación.");
+        }
+    }
+
+    private CommandResult ExecuteConfirmedFileAction(PendingFileAction action)
+    {
+        try
+        {
+            if (action.Action != FileActionType.Delete)
+                return CommandResult.Failure("La confirmación ya no corresponde a una operación válida.");
+
+            if (!File.Exists(action.SourcePath))
+                return CommandResult.Failure("Ese archivo ya no existe.");
+
+            File.Delete(action.SourcePath);
+
+            if (_context.LastFile == action.SourcePath)
+                _context.SetResults(_context.LastResults.Where(path => !string.Equals(path, action.SourcePath, StringComparison.OrdinalIgnoreCase)));
+
+            return CommandResult.Success($"Listo, eliminé «{Path.GetFileName(action.SourcePath)}».");
+        }
+        catch (Exception ex)
+        {
+            App.LogException(ex, "No se pudo eliminar el archivo confirmado");
+            return CommandResult.Failure("No pude eliminar ese archivo.");
+        }
     }
 
     private bool TryGetFileCommand(string text, out FileCommand command)
@@ -661,7 +900,7 @@ public sealed class CommandEngine
         {
             if (command.Action == WindowAction.Desktop)
             {
-                SendWindowsShortcut(0x12, 0x09, 0x10);
+                SendWindowsShortcut(0x5B, 0x44);
                 return CommandResult.Success("Listo, señor.");
             }
 
@@ -986,7 +1225,11 @@ public sealed class CommandEngine
             ? GetForegroundWindow()
             : FindWindowByTarget(normalizedTarget);
 
-        return handle != IntPtr.Zero && ShowWindow(handle, command);
+        if (handle == IntPtr.Zero)
+            return false;
+
+        ShowWindow(handle, command);
+        return true;
     }
 
     private static IntPtr FindWindowByTarget(string target)
@@ -1112,6 +1355,7 @@ public sealed class CommandEngine
     private delegate bool EnumWindowsProc(IntPtr handle, IntPtr extraData);
 
     private readonly record struct FileCommand(string Location, string? FolderName, string FileName);
+    private readonly record struct FileActionCommand(FileActionType Action, string SourcePath, string? DestinationPath, string? NewName);
     private readonly record struct ApplicationCommand(ApplicationAction Action, string Target);
     private readonly record struct WindowCommand(WindowAction Action);
     private readonly record struct SystemCommand(SystemAction Action);
