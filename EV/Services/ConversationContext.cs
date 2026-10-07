@@ -7,6 +7,7 @@ public sealed class ConversationContext
     public string? CurrentPath { get; private set; }
     public string? LastFile { get; private set; }
     public string? LastFolder { get; private set; }
+    public PendingFileAction? PendingAction { get; private set; }
 
     public IReadOnlyList<string> LastResults => _lastResults;
 
@@ -89,11 +90,21 @@ public sealed class ConversationContext
         return null;
     }
 
+    public void SetPendingAction(PendingFileAction action) => PendingAction = action;
+
+    public PendingFileAction? TakePendingAction()
+    {
+        var action = PendingAction;
+        PendingAction = null;
+        return action;
+    }
+
     public void Clear()
     {
         CurrentPath = null;
         LastFile = null;
         LastFolder = null;
+        PendingAction = null;
         _lastResults.Clear();
     }
 
@@ -106,4 +117,14 @@ public sealed class ConversationContext
             .ToLowerInvariant()
             .Trim();
     }
+}
+
+public sealed record PendingFileAction(FileActionType Action, string SourcePath, string? DestinationPath, string? NewName);
+
+public enum FileActionType
+{
+    Move,
+    Copy,
+    Rename,
+    Delete
 }
