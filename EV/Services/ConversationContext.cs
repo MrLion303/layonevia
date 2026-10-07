@@ -27,6 +27,16 @@ public sealed class ConversationContext
         LastFile = path;
     }
 
+    public string? ResolveFileReference(string text)
+    {
+        var normalized = text.Trim().ToLowerInvariant();
+        if (normalized.Contains("ese archivo") || normalized.Contains("ese documento") ||
+            normalized.Contains("ese fichero"))
+            return LastFile;
+
+        return null;
+    }
+
     public void SetOpenedFolder(string path)
     {
         LastFolder = path;
