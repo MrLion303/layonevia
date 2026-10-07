@@ -1,0 +1,30 @@
+name: Compilar EV
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  compilar:
+    runs-on: windows-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restaurar dependencias
+        run: dotnet restore EV/EV.csproj
+
+      - name: Publicar EV
+        run: dotnet publish EV/EV.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o salida
+
+      - name: Subir EV
+        uses: actions/upload-artifact@v4
+        with:
+          name: EV-Windows-x64
+          path: salida/
